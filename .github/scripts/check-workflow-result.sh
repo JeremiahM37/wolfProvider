@@ -242,6 +242,21 @@ if [ "$WOLFPROV_FORCE_FAIL" = "WOLFPROV_FORCE_FAIL=1" ]; then
             echo "Error: openssh-test.log not found"
             exit 1
         fi
+# ----- TCPDUMP -----
+    elif [ "$TEST_SUITE" = "tcpdump" ]; then
+        if [ -f "tcpdump-test.log" ]; then
+            # Check for expected 7 failed tests (ESP/crypto segfaults)
+            if grep -q "7 tests failed" tcpdump-test.log; then
+                echo "PASS: tcpdump tests failed as expected with force fail enabled (7 tests failed)"
+                exit 0
+            else
+                echo "FAIL: tcpdump tests did not fail as expected (should have 7 failed tests)"
+                exit 1
+            fi
+        else
+            echo "Error: tcpdump-test.log not found"
+            exit 1
+        fi
     # ----- LIBOAUTH2 -----
     elif [ "$TEST_SUITE" = "liboauth2" ]; then
         if [ -f "liboauth2-test.log" ]; then
