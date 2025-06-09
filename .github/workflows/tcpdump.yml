@@ -1,20 +1,16 @@
 name: tcpdump Tests
 
-# Defines when the workflow runs: on pushes to specific branches or any pull request.
 on:
   push:
-    branches: [ 'master', 'main', 'release/**' ]
-  pull_request:
-    branches: [ '*' ]
+    branches: [ 'tcpdump' ]
+      #pull_request:
+      # branches: [ '*' ]
 
-# Ensures only one workflow run for a given branch/PR at a time, cancelling older runs.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  # This job builds wolfSSL, OpenSSL, and wolfProvider.
-  # It assumes you have a separate reusable workflow for this, like your examples.
   build_wolfprovider:
     uses: ./.github/workflows/build-wolfprovider.yml
     with:
@@ -25,22 +21,21 @@ jobs:
         wolfssl_ref: [ 'master', 'v5.8.0-stable' ]
         openssl_ref: [ 'openssl-3.5.0' ]
 
-  # This job builds tcpdump and runs its tests with wolfProvider.
   test_tcpdump:
-    runs-on: ubuntu-22.04 # Specifies the runner environment (Ubuntu 22.04 VM).
-    needs: build_wolfprovider # Ensures the crypto dependencies are built first.
-    timeout-minutes: 15 # Sets a maximum time limit for the job.
+    runs-on: ubuntu-22.04
+    needs: build_wolfprovider
+    timeout-minutes: 15
     strategy:
       matrix:
         wolfssl_ref: [ 'master', 'v5.8.0-stable' ]
         openssl_ref: [ 'openssl-3.5.0' ]
-        force_fail: [ 'WOLFPROV_FORCE_FAIL=1', '' ] # Matrix for testing normal pass and forced fail.
+        force_fail: [ 'WOLFPROV_FORCE_FAIL=1', '' ]
 
     steps:
-      - name: Checkout Workflow Repository # Downloads your current repository containing this workflow and scripts.
+      - name: Checkout Workflow Repository
         uses: actions/checkout@v4
 
-      - name: Retrieve OpenSSL from cache # Restores OpenSSL build artifacts from the cache.
+      - name: Retrieve OpenSSL from cache
         uses: actions/cache/restore@v4
         id: openssl-cache
         with:
@@ -50,7 +45,7 @@ jobs:
           key: ossl-depends-${{ matrix.openssl_ref }}-${{ github.sha }}
           fail-on-cache-miss: true
 
-      - name: Retrieve wolfSSL/wolfProvider from cache # Restores wolfSSL and wolfProvider build artifacts from the cache.
+      - name: Retrieve wolfSSL/wolfProvider from cache
         uses: actions/cache/restore@v4
         id: wolfprov-cache
         with:
@@ -62,60 +57,66 @@ jobs:
           key: wolfprov-${{ matrix.wolfssl_ref }}-${{ github.sha }}
           fail-on-cache-miss: true
 
-      - name: Install test dependencies # Downloads and installs required build tools for libpcap and tcpdump.
+      - name: Install test dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y flex bison autoconf libtool
+          sudo apt-get install -y build-essential flex bison autoconf libtool
 
-      - name: Checkout libpcap # Downloads the libpcap source code.
+      - name: Checkout libpcap
         uses: actions/checkout@v4
         with:
           repository: the-tcpdump-group/libpcap
           path: libpcap_repo
 
-      - name: Build and install libpcap # Compiles and installs libpcap.
+      - name: Build and install libpcap
         working-directory: libpcap_repo
         run: |
-          ./autogen.sh # Generates configuration scripts.
-          ./configure --prefix=/usr/local # Configures for installation to /usr/local.
-          make -j$(nproc) # Compiles using all available CPU cores.
-          sudo make install # Installs libpcap system-wide.
+          ./autogen.sh
+          ./configure --prefix=$GITHUB_WORKSPACE/libpcap-install
+          make -j$(nproc)
+          make install
 
-      - name: Checkout tcpdump # Downloads the tcpdump source code.
+      - name: Checkout tcpdump
         uses: actions/checkout@v4
         with:
           repository: the-tcpdump-group/tcpdump
           path: tcpdump_repo
 
-      - name: Build and install tcpdump # Compiles and installs tcpdump.
+      - name: Build and install tcpdump
         working-directory: tcpdump_repo
         run: |
-          ./autogen.sh # Generates configuration scripts.
-          # Configures tcpdump to use the installed libpcap.
-          ./configure --prefix=/usr/local --with-pcap=/usr/local
-          make -j$(nproc) # Compiles.
-          sudo make install # Installs tcpdump system-wide.
+          ./autogen.sh
+          export PKG_CONFIG_PATH=$GITHUB_WORKSPACE/libpcap-install/lib/pkgconfig:$PKG_CONFIG_PATH
+          ./configure --prefix=$GITHUB_WORKSPACE/tcpdump-install --with-pcap=$GITHUB_WORKSPACE/libpcap-install
+          make -j$(nproc)
+          make install
 
-      - name: Run tcpdump tests # Configures environment variables and executes tcpdump's test suite.
+      - name: Run tcpdump tests
         working-directory: tcpdump_repo
         run: |
-          # Sets library paths so OpenSSL can find wolfSSL and wolfProvider.
-          export LD_LIBRARY_PATH=$GITHUB_WORKSPACE/wolfssl-install/lib:\
-                                  $GITHUB_WORKSPACE/openssl-install/lib:\
-                                  $GITHUB_WORKSPACE/openssl-install/lib64:\
-                                  $LD_LIBRARY_PATH
-          # Specifies the OpenSSL configuration file for wolfProvider.
-          export OPENSSL_CONF=$GITHUB_WORKSPACE/provider.conf
-          # Points OpenSSL to the directory where wolfProvider module is installed.
-          export OPENSSL_MODULES=$GITHUB_WORKSPACE/wolfprov-install/lib
-          sudo ldconfig # Updates dynamic linker run-time bindings.
-
-          # Applies the force_fail matrix variable to the environment.
+          # Set environment variables for wolfProvider (for OpenSSL)
+          export LD_LIBRARY_PATH="$GITHUB_WORKSPACE/wolfssl-install/lib:$GITHUB_WORKSPACE/openssl-install/lib:$GITHUB_WORKSPACE/openssl-install/lib64:$GITHUB_WORKSPACE/libpcap-install/lib:$GITHUB_WORKSPACE/tcpdump-install/lib:$LD_LIBRARY_PATH"
+          export OPENSSL_CONF="$GITHUB_WORKSPACE/provider.conf"
+          export OPENSSL_MODULES="$GITHUB_WORKSPACE/wolfprov-install/lib"
+          export PKG_CONFIG_PATH="$GITHUB_WORKSPACE/openssl-install/lib64/pkgconfig:$GITHUB_WORKSPACE/libpcap-install/lib/pkgconfig:$PKG_CONFIG_PATH"
+          export PATH="$GITHUB_WORKSPACE/tcpdump-install/sbin:$GITHUB_WORKSPACE/tcpdump-install/bin:$PATH"
+          
+          # Apply the force_fail matrix variable
           export ${{ matrix.force_fail }}
 
-          # Runs tcpdump's 'make check' and captures its output.
+          # Debug: Check if wolfProvider is loading correctly
+          echo "Testing wolfProvider availability:"
+          openssl list -providers || true
+          
+          # Run tests with more verbose output
           make check 2>&1 | tee tcpdump-test.log
-          TEST_RESULT=$? # Stores the exit code of the test run.
-
-          # Executes a custom script to evaluate the test result based on force_fail.
+          TEST_RESULT=$?
+          
+          # Debug: Show failed test details
+          if [ $TEST_RESULT -ne 0 ]; then
+            echo "=== Failed Tests Summary ==="
+            grep -A2 -B2 "exit code\|failed\|FAILED" tcpdump-test.log || true
+            echo "=== End Failed Tests Summary ==="
+          fi
+          
           $GITHUB_WORKSPACE/.github/scripts/check-workflow-result.sh $TEST_RESULT ${{ matrix.force_fail }} tcpdump
