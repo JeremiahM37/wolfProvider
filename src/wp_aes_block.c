@@ -330,6 +330,7 @@ static int wp_aes_block_init(wp_AesBlockCtx *ctx, const unsigned char *key,
             int rc = wc_AesSetKey(&ctx->aes, key, (word32)ctx->keyLen, ctx->iv,
                 enc ? AES_ENCRYPTION : AES_DECRYPTION);
             if (rc != 0) {
+                WOLFPROV_MSG(WP_LOG_AES, "wc_AesSetKey failed with rc=%d", rc);
                 ok = 0;
             }
         }

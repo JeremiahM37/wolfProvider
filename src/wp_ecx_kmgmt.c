@@ -278,6 +278,7 @@ static wp_Ecx* wp_ecx_new(WOLFPROV_CTX* provCtx, const wp_EcxData* data)
 
         rc = (*data->initKey)((void*)&ecx->key);
         if (rc != 0) {
+            WOLFPROV_MSG(WP_LOG_KE, "initKey failed with rc=%d", rc);
             ok = 0;
         }
 
@@ -285,6 +286,7 @@ static wp_Ecx* wp_ecx_new(WOLFPROV_CTX* provCtx, const wp_EcxData* data)
         if (ok) {
             rc = wc_InitMutex(&ecx->mutex);
             if (rc != 0) {
+                WOLFPROV_MSG(WP_LOG_KE, "wc_InitMutex failed with rc=%d", rc);
                 (*data->freeKey)(&ecx->key);
                 ok = 0;
             }
@@ -1173,6 +1175,7 @@ static wp_EcxGenCtx* wp_ecx_gen_init(WOLFPROV_CTX* provCtx,
 
         rc = wc_InitRng(&ctx->rng);
         if (rc != 0) {
+            WOLFPROV_MSG(WP_LOG_KE, "wc_InitRng failed with rc=%d", rc);
             ok = 0;
         }
         if (ok) {

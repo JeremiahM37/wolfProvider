@@ -288,6 +288,7 @@ static int wp_dh_derive_secret(wp_DhCtx* ctx, unsigned char* secret,
             pub, pubSz);
         PRIVATE_KEY_LOCK();
         if (rc != 0) {
+            WOLFPROV_MSG(WP_LOG_DH, "wc_DhAgree failed with rc=%d", rc);
             ok = 0;
         }
         else {

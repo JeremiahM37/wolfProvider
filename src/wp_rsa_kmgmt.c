@@ -1511,6 +1511,7 @@ static wp_Rsa* wp_rsa_gen(wp_RsaGenCtx* ctx, OSSL_CALLBACK* cb, void* cbArg)
                     /* retry */
                 }
                 else if (rc != 0) {
+                    WOLFPROV_MSG(WP_LOG_RSA, "wc_MakeRsaKey failed with rc=%d", rc);
                     wp_rsa_free(rsa);
                     rsa = NULL;
                     break;

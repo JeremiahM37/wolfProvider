@@ -1201,6 +1201,7 @@ static int wp_aesgcm_tls_cipher(wp_AeadCtx* ctx, unsigned char* out,
                     (word32)ctx->ivLen, out + len, EVP_GCM_TLS_TAG_LEN,
                     ctx->buf, EVP_AEAD_TLS1_AAD_LEN);
             if (rc != 0) {
+                WOLFPROV_MSG(WP_LOG_AES, "wc_AesGcmEncrypt failed with rc=%d", rc);
                 ok = 0;
             }
         }
@@ -1209,6 +1210,7 @@ static int wp_aesgcm_tls_cipher(wp_AeadCtx* ctx, unsigned char* out,
                     (word32)ctx->ivLen, in + len, EVP_GCM_TLS_TAG_LEN, ctx->buf,
                     EVP_AEAD_TLS1_AAD_LEN);
             if (rc != 0) {
+                WOLFPROV_MSG(WP_LOG_AES, "wc_AesGcmDecrypt failed with rc=%d", rc);
                 OPENSSL_cleanse(out, len);
                 ok = 0;
             }
@@ -1849,6 +1851,7 @@ static int wp_aesccm_tls_cipher(wp_AeadCtx* ctx, unsigned char* out,
         if (ctx->enc) {
             rc = wc_AesCcmSetNonce(&ctx->aes, ctx->iv, (word32)ctx->ivLen);
             if (rc != 0) {
+                WOLFPROV_MSG(WP_LOG_AES, "wc_AesCcmSetNonce failed with rc=%d", rc);
                 ok = 0;
             }
             else {
@@ -1856,6 +1859,7 @@ static int wp_aesccm_tls_cipher(wp_AeadCtx* ctx, unsigned char* out,
                     ctx->iv, (word32)ctx->ivLen, out + len, (word32)ctx->tagLen,
                     ctx->buf, (word32)ctx->tlsAadLen);
                 if (rc != 0) {
+                    WOLFPROV_MSG(WP_LOG_AES, "wc_AesCcmEncrypt_ex failed with rc=%d", rc);
                     ok = 0;
                 }
             }
@@ -1865,6 +1869,7 @@ static int wp_aesccm_tls_cipher(wp_AeadCtx* ctx, unsigned char* out,
                 (word32)ctx->ivLen, in + len, (word32)ctx->tagLen, ctx->buf,
                 (word32)ctx->tlsAadLen);
             if (rc != 0) {
+                WOLFPROV_MSG(WP_LOG_AES, "wc_AesCcmDecrypt failed with rc=%d", rc);
                 ok = 0;
             }
         }

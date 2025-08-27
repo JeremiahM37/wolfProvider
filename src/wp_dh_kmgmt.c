@@ -1715,6 +1715,7 @@ static int wp_dh_gen_keypair(wp_DhGenCtx *ctx, wp_Dh* dh)
             dh->pub, &pubSz);
         PRIVATE_KEY_LOCK();
         if (rc != 0) {
+            WOLFPROV_MSG(WP_LOG_DH, "wc_DhGenerateKeyPair failed with rc=%d", rc);
             ok = 0;
         }
     }

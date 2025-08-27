@@ -279,6 +279,7 @@ static int wp_ecdh_derive_secret(wp_EcdhCtx* ctx, unsigned char* secret,
             wp_ecc_get_key(ctx->peer), secret, &len);
         PRIVATE_KEY_LOCK();
         if (rc != 0) {
+            WOLFPROV_MSG(WP_LOG_ECDH, "wc_ecc_shared_secret failed with rc=%d", rc);
             ok = 0;
         }
     }

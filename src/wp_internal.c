@@ -58,6 +58,7 @@ int wp_provctx_lock_rng(WOLFPROV_CTX* provCtx)
 
     rc = wc_LockMutex(&provCtx->rng_mutex);
     if (rc != 0) {
+        WOLFPROV_MSG(WP_LOG_PROVIDER, "wc_LockMutex failed with rc=%d", rc);
         ok = 0;
     }
 
@@ -100,6 +101,7 @@ int wp_lock(wolfSSL_Mutex *mutex)
     else {
         rc = wc_LockMutex(mutex);
         if (rc < 0) {
+            WOLFPROV_MSG(WP_LOG_KE, "wc_LockMutex failed with rc=%d", rc);
             ok = 0;
         }
     }

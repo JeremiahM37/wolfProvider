@@ -171,6 +171,7 @@ static int wp_rsa_setup_md(wp_RsaSigCtx* ctx, const char* mdName,
             rc = wc_HashInit_ex(&ctx->hash, ctx->hashType, NULL, INVALID_DEVID);
 #endif
             if (rc != 0) {
+                WOLFPROV_MSG(WP_LOG_RSA, "wc_HashInit_ex failed with rc=%d", rc);
                 ok = 0;
             }
         }
@@ -261,6 +262,7 @@ static wp_RsaSigCtx* wp_rsa_ctx_new(WOLFPROV_CTX* provCtx,
         if (ok) {
             rc = wc_InitRng(&ctx->rng);
             if (rc != 0) {
+                WOLFPROV_MSG(WP_LOG_RSA, "wc_InitRng failed with rc=%d", rc);
                 ok = 0;
             }
         }
@@ -1603,6 +1605,7 @@ static int wp_rsa_digest_sign_final(wp_RsaSigCtx* ctx, unsigned char* sig,
 #endif
                 digest);
         if (rc != 0) {
+            WOLFPROV_MSG(WP_LOG_RSA, "wc_HashFinal failed with rc=%d", rc);
             ok = 0;
         }
     }
@@ -1680,6 +1683,7 @@ static int wp_rsa_digest_verify_final(wp_RsaSigCtx* ctx, unsigned char* sig,
 #endif
                 digest);
         if (rc != 0) {
+            WOLFPROV_MSG(WP_LOG_RSA, "wc_HashFinal failed with rc=%d", rc);
             ok = 0;
         }
     }

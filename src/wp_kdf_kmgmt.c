@@ -98,6 +98,7 @@ static wp_Kdf* wp_kdf_new(WOLFPROV_CTX *provCtx)
     #ifndef SINGLE_THREADED
         int rc = wc_InitMutex(&kdf->mutex);
         if (rc != 0) {
+            WOLFPROV_MSG(WP_LOG_KDF, "wc_InitMutex failed with rc=%d", rc);
             OPENSSL_free(kdf);
             kdf = NULL;
         }

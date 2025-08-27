@@ -189,6 +189,7 @@ static int wp_kdf_tls1_prf_derive(wp_Tls1Prf_Ctx* ctx, unsigned char* key,
                 INVALID_DEVID);
             PRIVATE_KEY_LOCK();
             if (rc != 0) {
+                WOLFPROV_MSG(WP_LOG_KDF, "wc_PRF_TLS failed with rc=%d", rc);
                 ok = 0;
             }
         }

@@ -115,6 +115,7 @@ static wp_RsaAsymCtx* wp_rsaa_ctx_new(WOLFPROV_CTX* provCtx)
     if (ctx != NULL) {
         int rc = wc_InitRng(&ctx->rng);
         if (rc != 0) {
+            WOLFPROV_MSG(WP_LOG_RSA, "wc_InitRng failed with rc=%d", rc);
             OPENSSL_free(ctx);
             ctx = NULL;
         }
@@ -421,6 +422,7 @@ static int wp_rsaa_decrypt(wp_RsaAsymCtx* ctx, unsigned char* out,
         /* TODO: not thread safe */
         rc = wc_RsaSetRNG(wp_rsa_get_key(ctx->rsa), &ctx->rng);
         if (rc != 0) {
+            WOLFPROV_MSG(WP_LOG_RSA, "wc_RsaSetRNG failed with rc=%d", rc);
             ok = 0;
         }
         if (!ok) {

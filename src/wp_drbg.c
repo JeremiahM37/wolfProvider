@@ -214,6 +214,7 @@ static int wp_drbg_generate(wp_DrbgCtx* ctx, unsigned char* out,
     if (ok) {
         rc = wc_RNG_GenerateBlock(ctx->rng, out, (word32)outLen);
         if (rc != 0) {
+            WOLFPROV_MSG(WP_LOG_RNG, "wc_RNG_GenerateBlock failed with rc=%d", rc);
             ok = 0;
         }
     }
@@ -293,6 +294,7 @@ static int wp_drbg_enable_locking(wp_DrbgCtx* ctx)
         if (ok) {
             int rc = wc_InitMutex(ctx->mutex);
             if (rc != 0) {
+                WOLFPROV_MSG(WP_LOG_RNG, "wc_InitMutex failed with rc=%d", rc);
                 OPENSSL_free(ctx->mutex);
                 ok = 0;
             }
@@ -323,6 +325,7 @@ static int wp_drbg_lock(wp_DrbgCtx* ctx)
     if (ctx->mutex != NULL) {
         rc = wc_LockMutex(ctx->mutex);
         if (rc != 0) {
+            WOLFPROV_MSG(WP_LOG_RNG, "wc_LockMutex failed with rc=%d", rc);
             ok = 0;
         }
     }
