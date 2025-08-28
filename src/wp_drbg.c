@@ -506,6 +506,7 @@ static size_t wp_drbg_get_seed(wp_DrbgCtx* ctx, unsigned char** pSeed,
     if (ok) {
         rc = wc_RNG_GenerateBlock(ctx->rng, buffer, (word32)minLen);
         if (rc != 0) {
+            WOLFPROV_MSG(WP_LOG_RNG, "wc_RNG_GenerateBlock failed with rc=%d", rc);
             ok = 0;
         }
     }

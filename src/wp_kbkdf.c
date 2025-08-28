@@ -399,6 +399,7 @@ static int wp_kbkdf_init_hmac(wp_KbkdfCtx* ctx, unsigned char* key,
         rc = wc_HmacSetKey(&ctx->hmacCtx, ctx->hashType, localKey,
             localKeyLen);
         if (rc != 0) {
+            WOLFPROV_MSG(WP_LOG_KDF, "wp_kbkdf_init_mac failed with rc=%d", rc);
             ok = 0;
         }
     }
