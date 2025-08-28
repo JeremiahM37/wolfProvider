@@ -694,6 +694,7 @@ static int wp_rsa_sign_pss(wp_RsaSigCtx* ctx, unsigned char* sig,
             PRIVATE_KEY_LOCK();
             wp_unlock(wp_rsa_get_mutex(ctx->rsa));
             if (rc < 0) {
+                WOLFPROV_MSG(WP_LOG_RSA, "wc_RsaPSS_Sign_ex failed with rc=%d", rc);
                 ok = 0;
             }
             else {

@@ -429,6 +429,9 @@ void wp_dh_free(wp_Dh* dh)
         int rc;
 
         rc = wc_LockMutex(&dh->mutex);
+        if (rc < 0) {
+            WOLFPROV_MSG(WP_LOG_DH, "wc_LockMutex failed with rc=%d", rc);
+        }
         cnt = --dh->refCnt;
         if (rc == 0) {
             wc_UnLockMutex(&dh->mutex);
@@ -978,6 +981,7 @@ static int wp_dh_validate_pub_key_quick(const wp_Dh* dh)
     if (ok) {
         rc = wc_DhCheckPubValue(prime, primeSz, dh->pub, (word32)dh->pubSz);
         if (rc != 0) {
+            WOLFPROV_MSG(WP_LOG_DH, "wc_DhCheckPubValue failed with rc=%d", rc);
             ok = 0;
         }
     }
@@ -1481,6 +1485,7 @@ static wp_DhGenCtx* wp_dh_gen_init(WOLFPROV_CTX* provCtx,
 
         rc = wc_InitRng(&ctx->rng);
         if (rc != 0) {
+            WOLFPROV_MSG(WP_LOG_DH, "wc_InitRng failed with rc=%d", rc);
             ok = 0;
         }
         if (ok) {

@@ -143,6 +143,7 @@ static int wp_drbg_instantiate(wp_DrbgCtx* ctx, unsigned int strength,
         if (ok) {
             int rc = wc_InitRng(ctx->rng);
             if (rc != 0) {
+                WOLFPROV_MSG(WP_LOG_RNG, "wc_InitRng failed with rc=%d", rc);
                 OPENSSL_clear_free(ctx->rng, sizeof(*ctx->rng));
                 ok = 0;
             }

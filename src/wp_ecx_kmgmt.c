@@ -322,6 +322,9 @@ void wp_ecx_free(wp_Ecx* ecx)
         int rc;
 
         rc = wc_LockMutex(&ecx->mutex);
+        if (rc < 0) {
+            WOLFPROV_MSG(WP_LOG_KE, "wc_LockMutex failed with rc=%d", rc);
+        }
         cnt = --ecx->refCnt;
         if (rc == 0) {
             wc_UnLockMutex(&ecx->mutex);

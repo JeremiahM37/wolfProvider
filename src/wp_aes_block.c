@@ -267,6 +267,7 @@ static int wp_aes_init_iv(wp_AesBlockCtx *ctx, const unsigned char *iv,
         XMEMCPY(ctx->oiv, iv, ivLen);
         rc = wc_AesSetIV(&ctx->aes, iv);
         if (rc != 0) {
+            WOLFPROV_MSG(WP_LOG_AES, "wc_AesSetIV failed with rc=%d", rc);
             ok = 0;
         }
     }

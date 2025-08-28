@@ -62,6 +62,7 @@ int wp_kdf_up_ref(wp_Kdf* kdf)
 
     rc = wc_LockMutex(&kdf->mutex);
     if (rc < 0) {
+        WOLFPROV_MSG(WP_LOG_KDF, "wc_LockMutex failed with rc=%d", rc);
         ok = 0;
     }
     if (ok) {

@@ -396,6 +396,9 @@ void wp_ecc_free(wp_Ecc* ecc)
         int rc;
 
         rc = wc_LockMutex(&ecc->mutex);
+        if (rc < 0) {
+            WOLFPROV_MSG(WP_LOG_ECC, "wc_LockMutex failed with rc=%d", rc);
+        }
         cnt = --ecc->refCnt;
         if (rc == 0) {
             wc_UnLockMutex(&ecc->mutex);
@@ -439,6 +442,7 @@ static wp_Ecc* wp_ecc_dup(const wp_Ecc *src, int selection)
         if ((selection & OSSL_KEYMGMT_SELECT_DOMAIN_PARAMETERS) != 0) {
             rc = wc_ecc_set_curve(&dst->key, (src->bits + 7) / 8, src->curveId);
             if (rc != 0) {
+                WOLFPROV_MSG(WP_LOG_ECC, "wc_ecc_set_curve failed with rc=%d", rc);
                 ok = 0;
             }
             if (ok) {
@@ -453,6 +457,7 @@ static wp_Ecc* wp_ecc_dup(const wp_Ecc *src, int selection)
             rc = wc_ecc_copy_point((ecc_point*)&src->key.pubkey,
                 &dst->key.pubkey);
             if (rc != 0) {
+                WOLFPROV_MSG(WP_LOG_ECC, "wc_ecc_copy_point failed with rc=%d", rc);
                 ok = 0;
             }
         }
@@ -467,6 +472,7 @@ static wp_Ecc* wp_ecc_dup(const wp_Ecc *src, int selection)
             rc = mp_copy(&(src->key.k), &(dst->key.k));
 #endif
             if (rc != 0) {
+                WOLFPROV_MSG(WP_LOG_ECC, "mp_copy failed with rc=%d", rc);
                 ok = 0;
             }
         }
@@ -553,6 +559,7 @@ static int wp_ecc_set_params_enc_pub_key(wp_Ecc *ecc, const OSSL_PARAM params[],
         int rc = wc_ecc_import_x963_ex(data, (word32)len, &ecc->key,
             ecc->curveId);
         if (rc != 0) {
+            WOLFPROV_MSG(WP_LOG_ECC, "wc_ecc_import_x963_ex failed with rc=%d", rc);
             ok = 0;
         }
         if (ok) {
@@ -581,6 +588,7 @@ static int wp_ecc_set_params_pub(wp_Ecc *ecc, const OSSL_PARAM params[])
 
     if (!wp_params_get_mp(params, OSSL_PKEY_PARAM_EC_PUB_X,
             ecc->key.pubkey.x, &set)) {
+        WOLFPROV_MSG(WP_LOG_ECC, "wp_params_get_mp failed for EC_PUB_X");
         ok = 0;
     }
     if (ok && (set == 1)) {
@@ -594,6 +602,7 @@ static int wp_ecc_set_params_pub(wp_Ecc *ecc, const OSSL_PARAM params[])
     }
     if (!wp_params_get_mp(params, OSSL_PKEY_PARAM_EC_PUB_Y,
             ecc->key.pubkey.y, NULL)) {
+        WOLFPROV_MSG(WP_LOG_ECC, "wp_params_get_mp failed for EC_PUB_Y");
         ok = 0;
     }
     if (wp_ecc_set_params_enc_pub_key(ecc, params,
@@ -802,6 +811,7 @@ static int wp_ecc_get_params(wp_Ecc* ecc, OSSL_PARAM params[])
     /* Maximum secret size. */
     p = OSSL_PARAM_locate(params, OSSL_PKEY_PARAM_MAX_SIZE);
     if ((p != NULL) && !OSSL_PARAM_set_int(p, wc_ecc_sig_size(&ecc->key))) {
+        WOLFPROV_MSG(WP_LOG_ECC, "OSSL_PARAM_set_int failed for MAX_SIZE");
         ok = 0;
     }
     if (ok) {
@@ -1455,6 +1465,7 @@ static int wp_ecc_export_keypair(wp_Ecc* ecc, OSSL_PARAM* params, int* pIdx,
                 &(ecc->key.k),
 #endif
                 data, idx))) {
+            WOLFPROV_MSG(WP_LOG_ECC, "wp_param_set_mp failed for PRIV_KEY");
             ok = 0;
         }
     }
@@ -2049,7 +2060,7 @@ static int wp_ecc_decode_params(wp_Ecc* ecc, unsigned char* data, word32 len)
     if (ok) {
         rc = wc_ecc_set_curve(&ecc->key, 0, ecc->curveId);
         if (rc != 0) {
-            WOLFPROV_MSG(WP_LOG_ECC, "Can't set curve: %d",rc);
+            WOLFPROV_MSG(WP_LOG_ECC, "Can't set curve: %d", rc);
             ok = 0;
         }
     }
@@ -2403,6 +2414,7 @@ static int wp_ecc_encode_pub_size(const wp_Ecc *ecc, size_t* keyLen)
 
     rc = wc_ecc_export_x963_ex((ecc_key*)&ecc->key, NULL, &len, 0);
     if (rc != LENGTH_ONLY_E) {
+        WOLFPROV_MSG(WP_LOG_ECC, "wc_ecc_export_x963_ex failed with rc=%d", rc);
         ok = 0;
     }
     if (ok) {
@@ -2434,6 +2446,7 @@ static int wp_ecc_encode_pub(const wp_Ecc *ecc, unsigned char* keyData,
 
     rc = wc_ecc_export_x963_ex((ecc_key*)&ecc->key, keyData, &len, 0);
     if (rc != 0) {
+        WOLFPROV_MSG(WP_LOG_ECC, "wc_ecc_export_x963_ex failed with rc=%d", rc);
         ok = 0;
     }
     if (ok) {

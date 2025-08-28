@@ -1110,7 +1110,8 @@ static int wp_aesgcm_dinit(wp_AeadCtx *ctx, const unsigned char *key,
     }
 #ifdef WOLFSSL_AESGCM_STREAM
     if (ok && key != NULL) {
-        if (wc_AesGcmDecryptInit(aes, key, (word32)keyLen, iv, (word32)ivLen) != 0) {
+        int rc = wc_AesGcmDecryptInit(aes, key, (word32)keyLen, iv, (word32)ivLen);
+        if (rc != 0) {
             WOLFPROV_MSG(WP_LOG_AES, "wc_AesGcmDecryptInit failed with rc=%d", rc);
             ok = 0;
         }

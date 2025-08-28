@@ -326,6 +326,7 @@ static int wp_rsasve_generate(wp_RsaKemCtx* ctx, unsigned char* out,
         rc = wc_RsaDirect(secret, nLen, out, &oLen, rsa, RSA_PUBLIC_ENCRYPT,
             &ctx->rng);
         if (rc < 0) {
+            WOLFPROV_MSG(WP_LOG_RSA, "wc_RsaDirect failed with rc=%d", rc);
             OPENSSL_cleanse(secret, nLen);
             ok = 0;
         }
@@ -428,6 +429,7 @@ static int wp_rsasve_recover(wp_RsaKemCtx* ctx, unsigned char* out,
             RSA_PRIVATE_DECRYPT, &ctx->rng);
         PRIVATE_KEY_LOCK();
         if (rc < 0) {
+            WOLFPROV_MSG(WP_LOG_RSA, "wc_RsaDirect decrypt failed with rc=%d", rc);
             ok = 0;
         }
         /* Front pad output with zeros if required. */
