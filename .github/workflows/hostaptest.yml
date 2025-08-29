@@ -1,4 +1,4 @@
-name: hostap-uml-tests-tests
+name: hostap-uml-tests
 
 # START OF COMMON SECTION
 #test
@@ -33,10 +33,12 @@ jobs:
       matrix:
         wolfssl_ref: [ 'v5.8.0-stable' ]
         openssl_ref: [ 'openssl-3.5.0' ]
-        force_fail: [ 'WOLFPROV_FORCE_FAIL=1', '' ]
+        force_fail: [ true, false ]  # Use boolean instead of string
     env:
       KVER: "6.6.41"
       KURL: "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.6.41.tar.xz"
+      # Set the environment variable at job level
+      WOLFPROV_FORCE_FAIL: ${{ matrix.force_fail && '1' || '' }}
     steps:
       - name: Checkout wolfProvider
         uses: actions/checkout@v4
@@ -105,14 +107,19 @@ jobs:
       
       - name: Insert environment variables (no heredoc)
         working-directory: hostap/tests/hwsim
+        env:
+          # Explicitly set the environment variable for this step
+          WOLFPROV_FORCE_FAIL: ${{ matrix.force_fail && '1' || '' }}
         run: |
           set -e
           source "$GITHUB_WORKSPACE/scripts/env-setup"
           
           # Set force_fail if specified in matrix
-          if [ -n "${{ matrix.force_fail }}" ]; then
-            export ${{ matrix.force_fail }}
-            echo "Setting force_fail: ${{ matrix.force_fail }}"
+          if [ "${{ matrix.force_fail }}" = "true" ]; then
+            export WOLFPROV_FORCE_FAIL=1
+            echo "Setting WOLFPROV_FORCE_FAIL=1"
+          else
+            echo "WOLFPROV_FORCE_FAIL not set"
           fi
           
           # Always regenerate start.sh to ensure fresh environment variables
@@ -166,6 +173,8 @@ jobs:
           sed -n '1,25p' start.sh
       
       - name: Sanity check
+        env:
+          WOLFPROV_FORCE_FAIL: ${{ matrix.force_fail && '1' || '' }}
         run: |
           echo "Host environment check:"
           echo "WOLFPROV_FORCE_FAIL=${WOLFPROV_FORCE_FAIL:-}"
@@ -181,6 +190,8 @@ jobs:
         env:
           # Tell vm-run.sh where the kernel is
           KERNEL: ${{ github.workspace }}/hostap/tests/hwsim/vm/linux-${{ env.KVER }}/linux
+          # Ensure environment variable is available to the VM
+          WOLFPROV_FORCE_FAIL: ${{ matrix.force_fail && '1' || '' }}
         run: |
           # Run a tiny subset first; you can pass patterns or test names
           echo "Running smoke tests with WOLFPROV_FORCE_FAIL=${WOLFPROV_FORCE_FAIL:-}"
@@ -190,10 +201,11 @@ jobs:
           echo "Smoke test result: $TEST_RESULT"
           
           # For smoke tests, we expect success unless force_fail is set
-          if [ -n "${{ matrix.force_fail }}" ] && [ $TEST_RESULT -eq 0 ]; then
-            echo "ERROR: Smoke tests passed but should have failed with ${{ matrix.force_fail }}"
+          if [ "${{ matrix.force_fail }}" = "true" ] && [ $TEST_RESULT -eq 0 ]; then
+            echo "ERROR: Smoke tests passed but should have failed with WOLFPROV_FORCE_FAIL=1"
+            echo "This indicates the force fail mechanism is not working properly"
             exit 1
-          elif [ -z "${{ matrix.force_fail }}" ] && [ $TEST_RESULT -ne 0 ]; then
+          elif [ "${{ matrix.force_fail }}" = "false" ] && [ $TEST_RESULT -ne 0 ]; then
             echo "ERROR: Smoke tests failed but should have passed"
             exit 1
           fi
@@ -203,6 +215,8 @@ jobs:
         working-directory: hostap/tests/hwsim/vm
         env:
           KERNEL: ${{ github.workspace }}/hostap/tests/hwsim/vm/linux-${{ env.KVER }}/linux
+          # Ensure environment variable is available to the VM
+          WOLFPROV_FORCE_FAIL: ${{ matrix.force_fail && '1' || '' }}
         run: |
           echo "Running TLS/EAP tests with WOLFPROV_FORCE_FAIL=${WOLFPROV_FORCE_FAIL:-}"
           timeout 5m ./vm-run.sh --timeout 1200 -- \
@@ -215,18 +229,20 @@ jobs:
           # Check if we have the result checker script
           if [ -f "$GITHUB_WORKSPACE/.github/scripts/check-workflow-result.sh" ]; then
             echo "Using check-workflow-result.sh to validate results"
-            $GITHUB_WORKSPACE/.github/scripts/check-workflow-result.sh $TEST_RESULT "${{ matrix.force_fail }}" hostap
+            $GITHUB_WORKSPACE/.github/scripts/check-workflow-result.sh $TEST_RESULT "${{ matrix.force_fail && 'WOLFPROV_FORCE_FAIL=1' || '' }}" hostap
           else
             echo "check-workflow-result.sh not found, implementing inline logic"
             
             # Inline result checking
-            if [ -n "${{ matrix.force_fail }}" ]; then
+            if [ "${{ matrix.force_fail }}" = "true" ]; then
               # force_fail is set, tests should fail
               if [ $TEST_RESULT -eq 0 ]; then
-                echo "ERROR: Tests passed but should have failed with ${{ matrix.force_fail }}"
+                echo "ERROR: Tests passed but should have failed with WOLFPROV_FORCE_FAIL=1"
+                echo "This indicates the force fail mechanism is not working properly"
                 exit 1
               else
-                echo "SUCCESS: Tests failed as expected with ${{ matrix.force_fail }}"
+                echo "SUCCESS: Tests failed as expected with WOLFPROV_FORCE_FAIL=1"
+                echo "Force fail mechanism is working correctly"
               fi
             else
               # force_fail is not set, tests should pass
@@ -257,5 +273,5 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: hwsim-logs-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}-${{ matrix.force_fail != '' && 'force-fail' || 'normal' }}
+          name: hwsim-logs-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}-${{ matrix.force_fail && 'force-fail' || 'normal' }}
           path: artifacts
