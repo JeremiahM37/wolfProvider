@@ -267,7 +267,7 @@ static int wp_aes_init_iv(wp_AesBlockCtx *ctx, const unsigned char *iv,
         XMEMCPY(ctx->oiv, iv, ivLen);
         rc = wc_AesSetIV(&ctx->aes, iv);
         if (rc != 0) {
-            WOLFPROV_MSG(WP_LOG_AES, "wc_AesSetIV failed with rc=%d", rc);
+            WOLFPROV_MSG_DEBUG(WP_LOG_DEBUG, "wc_AesSetIV failed with rc=%d", rc);
             ok = 0;
         }
     }
@@ -331,7 +331,7 @@ static int wp_aes_block_init(wp_AesBlockCtx *ctx, const unsigned char *key,
             int rc = wc_AesSetKey(&ctx->aes, key, (word32)ctx->keyLen, ctx->iv,
                 enc ? AES_ENCRYPTION : AES_DECRYPTION);
             if (rc != 0) {
-                WOLFPROV_MSG(WP_LOG_AES, "wc_AesSetKey failed with rc=%d", rc);
+                WOLFPROV_MSG_DEBUG(WP_LOG_DEBUG, "wc_AesSetKey failed with rc=%d", rc);
                 ok = 0;
             }
         }
@@ -405,9 +405,15 @@ static int wp_aes_block_doit(wp_AesBlockCtx *ctx, unsigned char *out,
     if (ctx->mode == EVP_CIPH_CBC_MODE) {
         if (ctx->enc) {
             rc = wc_AesCbcEncrypt(&ctx->aes, out, in, (word32)inLen);
+            if (rc != 0) {
+                WOLFPROV_MSG_DEBUG(WP_LOG_DEBUG, "wc_AesCbcEncrypt failed with rc=%d", rc);
+            }
         }
         else {
             rc = wc_AesCbcDecrypt(&ctx->aes, out, in, (word32)inLen);
+            if (rc != 0) {
+                WOLFPROV_MSG_DEBUG(WP_LOG_DEBUG, "wc_AesCbcDecrypt failed with rc=%d", rc);
+            }
         }
         XMEMCPY(ctx->iv, ctx->aes.reg, ctx->ivLen);
     }
@@ -417,9 +423,15 @@ static int wp_aes_block_doit(wp_AesBlockCtx *ctx, unsigned char *out,
     if (ctx->mode == EVP_CIPH_ECB_MODE) {
         if (ctx->enc) {
             rc = wc_AesEcbEncrypt(&ctx->aes, out, in, (word32)inLen);
+            if (rc != 0) {
+                WOLFPROV_MSG_DEBUG(WP_LOG_DEBUG, "wc_AesEcbEncrypt failed with rc=%d", rc);
+            }
         }
         else {
             rc = wc_AesEcbDecrypt(&ctx->aes, out, in, (word32)inLen);
+            if (rc != 0) {
+                WOLFPROV_MSG_DEBUG(WP_LOG_DEBUG, "wc_AesEcbDecrypt failed with rc=%d", rc);
+            }
         }
     }
     else

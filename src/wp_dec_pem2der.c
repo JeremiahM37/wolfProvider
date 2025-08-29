@@ -170,7 +170,7 @@ static int wp_pem2der_convert(const char* data, word32 len, DerBuffer** pDer,
         base64Len = footer - base64Data;
         rc = wc_AllocDer(pDer, (word32)base64Len, ECC_TYPE, NULL);
         if (rc != 0) {
-            WOLFPROV_MSG(WP_LOG_PK, "wc_AllocDer failed with rc=%d", rc);
+            WOLFPROV_MSG_DEBUG(WP_LOG_DEBUG, "wc_AllocDer failed with rc=%d", rc);
             ok = 0;
         }
     }
@@ -178,7 +178,7 @@ static int wp_pem2der_convert(const char* data, word32 len, DerBuffer** pDer,
         rc = Base64_Decode((byte*)base64Data, (word32)base64Len,
             (*pDer)->buffer, &(*pDer)->length);
         if (rc < 0) {
-            WOLFPROV_MSG(WP_LOG_PK, "Base64_Decode failed with rc=%d", rc);
+            WOLFPROV_MSG_DEBUG(WP_LOG_DEBUG, "Base64_Decode failed with rc=%d", rc);
             ok = 0;
         }
     }
@@ -326,6 +326,7 @@ static int wp_pem2der_decode_data(const unsigned char* data, word32 len,
         /* Decode the PEM to DER using wolfSSL. */
         rc = wc_PemToDer(data, len, type, &der, NULL, &info, &algoId);
         if (rc != 0) {
+            WOLFPROV_MSG_DEBUG(WP_LOG_DEBUG, "wc_PemToDer failed with rc=%d", rc);
             ok = 0;
         }
     #if LIBWOLFSSL_VERSION_HEX < 0x05000000
@@ -343,6 +344,7 @@ static int wp_pem2der_decode_data(const unsigned char* data, word32 len,
             if (ok) {
                 rc = wc_AllocDer(&pkcs8Der, pkcs8Sz, DYNAMIC_TYPE_KEY, NULL);
                 if (rc != 0) {
+                    WOLFPROV_MSG_DEBUG(WP_LOG_DEBUG, "wc_AllocDer failed with rc=%d", rc);
                     ok = 0;
                 }
             }

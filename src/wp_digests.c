@@ -130,7 +130,7 @@ static int name##_init(CTX* ctx, const OSSL_PARAM params[])                    \
     if (ok) {                                                                  \
         int rc = init(ctx, NULL, -1);                                          \
         if (rc != 0) {                                                         \
-            WOLFPROV_MSG(WP_LOG_DIGEST, #init " failed with rc=%d", rc);      \
+            WOLFPROV_MSG_DEBUG(WP_LOG_DEBUG, #init " failed with rc=%d", rc);      \
             ok = 0;                                                            \
         }                                                                      \
     }                                                                          \
@@ -155,7 +155,7 @@ static int name##_update(void* ctx, const unsigned char* in, size_t inLen)     \
     WOLFPROV_ENTER(WP_LOG_DIGEST, #name "_update");                           \
     int rc = upd(ctx, in, (word32)inLen);                                      \
     if (rc != 0) {                                                             \
-        WOLFPROV_MSG(WP_LOG_DIGEST, #upd " failed with rc=%d", rc);            \
+        WOLFPROV_MSG_DEBUG(WP_LOG_DEBUG, #upd " failed with rc=%d", rc);            \
         ok = 0;                                                                \
     }                                                                          \
     WOLFPROV_LEAVE(WP_LOG_DIGEST, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), ok);\
@@ -188,7 +188,7 @@ static int name##_final(void* ctx, unsigned char* out, size_t* outLen,         \
     if (ok) {                                                                  \
         int rc = fin(ctx, out);                                                \
         if (rc != 0) {                                                         \
-            WOLFPROV_MSG(WP_LOG_DIGEST, #fin " failed with rc=%d", rc);        \
+            WOLFPROV_MSG_DEBUG(WP_LOG_DEBUG, #fin " failed with rc=%d", rc);        \
             ok = 0;                                                            \
         }                                                                      \
         else {                                                                 \
@@ -355,8 +355,14 @@ static int wp_InitMd5Sha_ex(wp_Md5Sha* dgst, void* heap, int devId)
 {
     int rc;
     rc = wc_InitMd5_ex(&dgst->md5, heap, devId);
+    if (rc != 0) {
+        WOLFPROV_MSG_DEBUG(WP_LOG_DEBUG, "wc_InitMd5_ex failed with rc=%d", rc);
+    }
     if (rc == 0) {
         rc = wc_InitSha_ex(&dgst->sha, heap, devId);
+        if (rc != 0) {
+            WOLFPROV_MSG_DEBUG(WP_LOG_DEBUG, "wc_InitSha_ex failed with rc=%d", rc);
+        }
     }
 
     return rc;
@@ -376,8 +382,14 @@ static int wp_Md5ShaUpdate(wp_Md5Sha* dgst, const byte* data, word32 len)
     int rc;
 
     rc = wc_Md5Update(&dgst->md5, data, len);
+    if (rc != 0) {
+        WOLFPROV_MSG_DEBUG(WP_LOG_DEBUG, "wc_Md5Update failed with rc=%d", rc);
+    }
     if (rc == 0) {
         rc = wc_ShaUpdate(&dgst->sha, data, len);
+        if (rc != 0) {
+            WOLFPROV_MSG_DEBUG(WP_LOG_DEBUG, "wc_ShaUpdate failed with rc=%d", rc);
+        }
     }
 
     return rc;
@@ -397,8 +409,14 @@ static int wp_Md5ShaFinal(wp_Md5Sha* dgst, byte* hash)
     int rc;
 
     rc = wc_Md5Final(&dgst->md5, hash);
+    if (rc != 0) {
+        WOLFPROV_MSG_DEBUG(WP_LOG_DEBUG, "wc_Md5Final failed with rc=%d", rc);
+    }
     if (rc == 0) {
         rc = wc_ShaFinal(&dgst->sha, hash + WC_MD5_DIGEST_SIZE);
+        if (rc != 0) {
+            WOLFPROV_MSG_DEBUG(WP_LOG_DEBUG, "wc_ShaFinal failed with rc=%d", rc);
+        }
     }
 
     return rc;
@@ -417,8 +435,14 @@ static int wp_Md5ShaCopy(wp_Md5Sha* src, wp_Md5Sha* dst)
     int rc;
 
     rc = wc_Md5Copy(&src->md5, &dst->md5);
+    if (rc != 0) {
+        WOLFPROV_MSG_DEBUG(WP_LOG_DEBUG, "wc_Md5Copy failed with rc=%d", rc);
+    }
     if (rc == 0) {
         rc = wc_ShaCopy(&src->sha, &dst->sha);
+        if (rc != 0) {
+            WOLFPROV_MSG_DEBUG(WP_LOG_DEBUG, "wc_ShaCopy failed with rc=%d", rc);
+        }
     }
 
     return rc;
@@ -580,6 +604,7 @@ static int name##_init(CTX* ctx, const OSSL_PARAM params[])                    \
     if (ok) {                                                                  \
         int rc = init(&ctx->obj, NULL, -1);                                    \
         if (rc != 0) {                                                         \
+            WOLFPROV_MSG_DEBUG(WP_LOG_DEBUG, #init " failed with rc=%d", rc); \
             ok = 0;                                                            \
         }                                                                      \
     }                                                                          \
@@ -616,6 +641,7 @@ static int name##_final(CTX* ctx, unsigned char* out, size_t* outLen,          \
     if (ok) {                                                                  \
         int rc = fin(&ctx->obj, out, (word32)ctx->outLen);                     \
         if (rc != 0) {                                                         \
+            WOLFPROV_MSG_DEBUG(WP_LOG_DEBUG, #fin " failed with rc=%d", rc);   \
             ok = 0;                                                            \
         }                                                                      \
         else {                                                                 \
@@ -661,6 +687,7 @@ static CTX* name##_dupctx(CTX* src)                                            \
         int rc;                                                                \
         rc = copy(&src->obj, &dst->obj);                                       \
         if (rc != 0) {                                                         \
+            WOLFPROV_MSG_DEBUG(WP_LOG_DEBUG, #copy " failed with rc=%d", rc);  \
             OPENSSL_free(dst);                                                 \
             dst = NULL;                                                        \
         }                                                                      \

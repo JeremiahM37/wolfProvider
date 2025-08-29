@@ -272,7 +272,7 @@ static int wp_kdf_pbkdf2_derive(wp_Pbkdf2Ctx* ctx, unsigned char* key,
             NULL, INVALID_DEVID);
         PRIVATE_KEY_LOCK();
         if (rc != 0) {
-            WOLFPROV_MSG(WP_LOG_PBKDF2, "wc_PBKDF2_ex failed with rc=%d", rc);
+            WOLFPROV_MSG_DEBUG(WP_LOG_DEBUG, "wc_PBKDF2_ex failed with rc=%d", rc);
             ok = 0;
         }
     }
@@ -389,7 +389,7 @@ static int wp_kdf_pkcs12_derive(wp_Pbkdf2Ctx* ctx, unsigned char* key,
             ctx->mdType, ctx->keyUse, NULL);
         PRIVATE_KEY_LOCK();
         if (rc != 0) {
-            WOLFPROV_MSG(WP_LOG_PBKDF2, "wc_PKCS12_PBKDF_ex failed with rc=%d", rc);
+            WOLFPROV_MSG_DEBUG(WP_LOG_DEBUG, "wc_PKCS12_PBKDF_ex failed with rc=%d", rc);
             ok = 0;
         }
     }
