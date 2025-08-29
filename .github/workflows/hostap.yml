@@ -1,6 +1,8 @@
 name: hostap-uml-tests
 
 # START OF COMMON SECTION
+#test
+
 on:
   push:
     branches: [ '*' ] #'master', 'main', 'release/**' ]
