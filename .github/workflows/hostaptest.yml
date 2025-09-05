@@ -57,7 +57,7 @@ jobs:
             libnl-3-dev libnl-genl-3-dev libnl-route-3-dev libdbus-1-dev \
             lcov binutils-dev libpcap-dev libcurl4-openssl-dev libiberty-dev \
             libsqlite3-dev libzstd1 \
-            wireless-tools iw \
+            wireless-tools iw crda wireless-regdb \
             bridge-utils tshark python3-pycryptodome
           # Uninstall system cryptography and reinstall with custom OpenSSL (like VM workflow)
           sudo apt-get remove -y python3-cryptography
@@ -155,6 +155,9 @@ jobs:
         working-directory: hostap/tests/hwsim
         if: matrix.force_fail == 'WOLFPROV_FORCE_FAIL=1'
         run: |
+          # Remove or disable CRDA calls since it's not available/needed in Ubuntu 24.04
+          sed -i '/crda/d' vm/inside.sh || true
+          
           sed -i '115r /dev/stdin' vm/inside.sh << EOF
             echo "setting env variables"
             echo "Setting up wolfSSL environment in UML mode"
