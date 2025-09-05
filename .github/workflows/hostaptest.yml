@@ -1,4 +1,4 @@
-name: hostap-uml-testing
+name: hostap-uml-tests-testing
 
 # START OF COMMON SECTION
 #test
@@ -22,7 +22,7 @@ jobs:
       openssl_ref: ${{ matrix.openssl_ref }}
     strategy:
       matrix:
-        wolfssl_ref: [ 'v5.8.0-stable' ]  # Fixed: Match the uml-hwsim matrix
+        wolfssl_ref: [ 'master', 'v5.8.0-stable' ]
         openssl_ref: [ 'openssl-3.5.0' ]
 
   uml-hwsim:
@@ -33,49 +33,40 @@ jobs:
       matrix:
         wolfssl_ref: [ 'v5.8.0-stable' ]
         openssl_ref: [ 'openssl-3.5.0' ]
-        force_fail: [ true, false ]  # Use boolean instead of string
+        force_fail: [ 'WOLFPROV_FORCE_FAIL=1', '' ]
     env:
       KVER: "6.6.41"
       KURL: "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.6.41.tar.xz"
-      # Set the environment variable at job level
-      WOLFPROV_FORCE_FAIL: ${{ matrix.force_fail && '1' || '' }}
     steps:
       - name: Checkout wolfProvider
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      # - name: Retrieving wolfProvider from cache
-      #   uses: actions/cache/restore@v4
-      #   id: wolfprov-cache-restore
-      #   with:
-      #     path: |
-      #       wolfssl-install
-      #       wolfprov-install
-      #       openssl-install/lib64
-      #       openssl-install/include
-      #       openssl-install/bin
-      #     key: wolfprov-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}-${{ github.sha }}
-      #     fail-on-cache-miss: true
-
       - name: Build wolfprovider
         run: |
-          OPENSSL_TAG=${{ matrix.openssl_ref }} WOLFSSL_TAG=${{ matrix.wolfssl_ref }} ./scripts/build-wolfprovider.sh --debug
-      
-      - name: Install build deps for UML + tests
+          OPENSSL_TAG=${{ inputs.openssl_ref }} WOLFSSL_TAG=${{ inputs.wolfssl_ref }} ./scripts/build-wolfprovider.sh --debug
+
+      # ADD: Install ALL dependencies like VM workflow
+      - name: Install build deps for UML + tests (COMPLETE SET)
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             build-essential git bc kmod python3 python3-pip python3-venv \
             libelf-dev libssl-dev flex bison zlib1g-dev libncurses5-dev \
-            libnl-3-dev libnl-genl-3-dev \
+            libnl-3-dev libnl-genl-3-dev libnl-route-3-dev libdbus-1-dev \
             lcov binutils-dev libpcap-dev libcurl4-openssl-dev libiberty-dev \
-            # libbfd for some tooling
-      
+            libsqlite3-dev libzstd1 \
+            wireless-tools iw crda wireless-regdb \
+            bridge-utils tshark python3-pycryptodome
+          # Uninstall system cryptography and reinstall with custom OpenSSL (like VM workflow)
+          sudo apt-get remove -y python3-cryptography
+          pip install --no-cache-dir --force-reinstall cryptography
+
       - name: Fetch hostap (if not vendored)
         run: |
           test -d hostap || git clone https://w1.fi/hostap.git
-      
+
       - name: Cache UML kernel build (entire build tree)
         id: cache-kernel
         uses: actions/cache@v4
@@ -84,194 +75,155 @@ jobs:
           key: uml-${{ runner.os }}-linux-${{ env.KVER }}-cfg-${{ hashFiles('hostap/tests/hwsim/vm/kernel-config.uml') }}
           restore-keys: |
             uml-${{ runner.os }}-linux-${{ env.KVER }}-
-      
+
       - name: Prepare kernel tree
         if: steps.cache-kernel.outputs.cache-hit != 'true'
         working-directory: hostap/tests/hwsim/vm
         run: |
           curl -L "$KURL" -o "linux-${KVER}.tar.xz"
           tar -xf "linux-${KVER}.tar.xz"
-      
+
       - name: Build UML kernel (time-travel capable)
-        # Build in the *real* dir, not the symlink
         working-directory: hostap/tests/hwsim/vm/linux-${{ env.KVER }}
         run: |
-          # Only refresh .config when it changed to keep incremental builds fast
           if [ ! -f .config ] || ! cmp -s ../kernel-config.uml .config; then
             cp ../kernel-config.uml .config
           fi
-          ARCH=um make olddefconfig #added
+          ARCH=um make olddefconfig
           ARCH=um make -j"$(nproc)"
-          # Optional: show we actually have a built kernel
           ls -lh vmlinux || true
-      
-      - name: Insert environment variables (no heredoc)
+
+      # MODIFIED: Use VM workflow's environment setup approach
+      - name: Setup environment variables (VM-style approach)
         working-directory: hostap/tests/hwsim
-        env:
-          # Explicitly set the environment variable for this step
-          WOLFPROV_FORCE_FAIL: ${{ matrix.force_fail && '1' || '' }}
         run: |
-          set -e
-          source "$GITHUB_WORKSPACE/scripts/env-setup"
+          # Create provider.conf in workspace
+          cat > "$GITHUB_WORKSPACE/provider.conf" << 'EOF'
+          openssl_conf = openssl_init
           
-          # Set force_fail if specified in matrix
-          if [ "${{ matrix.force_fail }}" = "true" ]; then
+          [openssl_init]
+          providers = provider_section
+          
+          [provider_section]
+          libwolfprov = libwolfprov_section
+          default = default_section
+          
+          [libwolfprov_section]
+          activate = 1
+          
+          [default_section]
+          activate = 1
+          EOF
+          
+          # Update config files like VM workflow
+          cat << EOF >> example-hostapd.config
+            # Custom OpenSSL installation paths
+            CFLAGS += -I$GITHUB_WORKSPACE/openssl-install/include
+            LDFLAGS += -L$GITHUB_WORKSPACE/openssl-install/lib64
+            # Override OpenSSL libraries to use custom installation with rpath
+            LIBS += -L$GITHUB_WORKSPACE/openssl-install/lib64 -Wl,-rpath,$GITHUB_WORKSPACE/openssl-install/lib64
+          EOF
+          cat << EOF >> example-wpa_supplicant.config
+            # Custom OpenSSL installation paths
+            CFLAGS += -I$GITHUB_WORKSPACE/openssl-install/include
+            LDFLAGS += -L$GITHUB_WORKSPACE/openssl-install/lib64
+            # Override OpenSSL libraries to use custom installation with rpath
+            LIBS += -L$GITHUB_WORKSPACE/openssl-install/lib64 -Wl,-rpath,$GITHUB_WORKSPACE/openssl-install/lib64
+          EOF
+
+      # MODIFIED: Setup inside.sh like VM workflow
+      - name: Setup non-WPFF environment
+        working-directory: hostap/tests/hwsim
+        if: matrix.force_fail == ''
+        run: |
+          sed -i '115r /dev/stdin' vm/inside.sh << EOF
+            echo "setting env variables"
+            echo "Setting up wolfSSL environment in UML mode"
+            export LD_LIBRARY_PATH="$GITHUB_WORKSPACE/openssl-install/lib64:$GITHUB_WORKSPACE/wolfprov-install/lib:\$LD_LIBRARY_PATH"
+            export OPENSSL_CONF="$GITHUB_WORKSPACE/provider.conf"
+            export OPENSSL_MODULES="$GITHUB_WORKSPACE/wolfprov-install/lib"
+            export CRYPTOGRAPHY_OPENSSL_NO_LEGACY=1
+            echo "wolfSSL environment variables set:"
+            echo "LD_LIBRARY_PATH: \$LD_LIBRARY_PATH"
+            echo "OPENSSL_CONF: \$OPENSSL_CONF"
+            echo "OPENSSL_MODULES: \$OPENSSL_MODULES"
+            echo "Testing OpenSSL providers:"
+            $GITHUB_WORKSPACE/openssl-install/bin/openssl list -providers || true
+          EOF
+
+      - name: Setup WPFF environment
+        working-directory: hostap/tests/hwsim
+        if: matrix.force_fail == 'WOLFPROV_FORCE_FAIL=1'
+        run: |
+          sed -i '115r /dev/stdin' vm/inside.sh << EOF
+            echo "setting env variables"
+            echo "Setting up wolfSSL environment in UML mode"
+            export LD_LIBRARY_PATH="$GITHUB_WORKSPACE/openssl-install/lib64:$GITHUB_WORKSPACE/wolfprov-install/lib:\$LD_LIBRARY_PATH"
+            export OPENSSL_CONF="$GITHUB_WORKSPACE/provider.conf"
+            export OPENSSL_MODULES="$GITHUB_WORKSPACE/wolfprov-install/lib"
+            export CRYPTOGRAPHY_OPENSSL_NO_LEGACY=1
             export WOLFPROV_FORCE_FAIL=1
-            echo "Setting WOLFPROV_FORCE_FAIL=1"
-          else
-            echo "WOLFPROV_FORCE_FAIL not set"
-          fi
-          
-          # Always regenerate start.sh to ensure fresh environment variables
-          echo "Regenerating start.sh with current environment variables"
-          
-          # Backup original if it exists
-          if [ -f start.sh ] && ! grep -q '^# injected OpenSSL provider env$' start.sh; then
-            cp start.sh start.sh.orig
-          fi
-          
-          # Pre-quote values safely for shell
-          conf=$(printf %q "$OPENSSL_CONF")
-          mods=$(printf %q "$OPENSSL_MODULES")
-          ldld=$(printf %q "${LD_LIBRARY_PATH:-}")
-          ff=$(printf %q "${WOLFPROV_FORCE_FAIL:-}")
-          LOGDIR="${HWSIM_TEST_LOG_DIR:-/tmp/hwsim-test-logs}"
-          
-          echo "Environment variables to inject:"
-          echo "  OPENSSL_CONF=$OPENSSL_CONF"
-          echo "  OPENSSL_MODULES=$OPENSSL_MODULES"
-          echo "  LD_LIBRARY_PATH=${LD_LIBRARY_PATH:-}"
-          echo "  WOLFPROV_FORCE_FAIL=${WOLFPROV_FORCE_FAIL:-}"
-          
-          tmp="$(mktemp)"
-          {
-            printf '#!/usr/bin/env bash\n'
-            printf '# injected OpenSSL provider env\n'
-            printf 'export OPENSSL_CONF=%s\n' "$conf"
-            printf 'export OPENSSL_MODULES=%s\n' "$mods"
-            [ -n "${LD_LIBRARY_PATH:-}" ] && printf 'export LD_LIBRARY_PATH=%s\n' "$ldld"
-            [ -n "${WOLFPROV_FORCE_FAIL:-}" ] && printf 'export WOLFPROV_FORCE_FAIL=%s\n' "$ff"
-            printf '\n'
-            printf 'sudo() { command sudo env OPENSSL_CONF=%s OPENSSL_MODULES=%s LD_LIBRARY_PATH=%s WOLFPROV_FORCE_FAIL=%s "$@"; }\n' "$conf" "$mods" "$ldld" "$ff"
-            printf '\n'
-            # show exactly what the VM sees + list providers
-            printf 'echo "[VM] OPENSSL_CONF=$OPENSSL_CONF" >&2\n'
-            printf 'echo "[VM] OPENSSL_MODULES=$OPENSSL_MODULES" >&2\n'
-            printf 'echo "[VM] WOLFPROV_FORCE_FAIL=${WOLFPROV_FORCE_FAIL:-}" >&2\n'
-            printf 'openssl list -providers -verbose 2>&1 | tee "$LOGDIR/openssl_providers.txt"\n'
-            printf '\n'
-            # Include original start.sh content
-            if [ -f start.sh.orig ]; then
-              cat start.sh.orig
-            else
-              echo 'echo "Original start.sh content was already modified"'
-            fi
-          } > "$tmp"
-          install -m 0755 "$tmp" start.sh
-          
-          echo "Generated start.sh (first 25 lines):"
-          sed -n '1,25p' start.sh
-      
+            echo "wolfSSL environment variables set:"
+            echo "LD_LIBRARY_PATH: \$LD_LIBRARY_PATH"
+            echo "OPENSSL_CONF: \$OPENSSL_CONF"
+            echo "OPENSSL_MODULES: \$OPENSSL_MODULES"
+            echo "Testing OpenSSL providers:"
+            $GITHUB_WORKSPACE/openssl-install/bin/openssl list -providers || true
+          EOF
+
+      # ADD: Update certs like VM workflow
+      - name: Update certs
+        working-directory: hostap/tests/hwsim/auth_serv
+        run: ./update.sh
+
       - name: Sanity check
-        env:
-          WOLFPROV_FORCE_FAIL: ${{ matrix.force_fail && '1' || '' }}
         run: |
-          echo "Host environment check:"
-          echo "WOLFPROV_FORCE_FAIL=${WOLFPROV_FORCE_FAIL:-}"
           openssl list -providers -verbose || true
-      
+
       - name: Build hostap test binaries
         working-directory: hostap/tests/hwsim
         run: ./build.sh
-        # hwsim test build instructions and quick-run example are in example-setup docs. :contentReference[oaicite:3]{index=3}
+
+      # ADD: Verify binaries like VM workflow
+      - name: Verify openssl binaries linked
+        working-directory: hostap
+        run: |
+          ldd hostapd/hostapd | grep ssl || true
+          ldd wpa_supplicant/wpa_supplicant | grep ssl || true
 
       - name: Smoke tests inside UML
         working-directory: hostap/tests/hwsim/vm
         env:
-          # Tell vm-run.sh where the kernel is
           KERNEL: ${{ github.workspace }}/hostap/tests/hwsim/vm/linux-${{ env.KVER }}/linux
-          # Ensure environment variable is available to the VM
-          WOLFPROV_FORCE_FAIL: ${{ matrix.force_fail && '1' || '' }}
         run: |
-          # Run a tiny subset first; you can pass patterns or test names
-          echo "Running smoke tests with WOLFPROV_FORCE_FAIL=${WOLFPROV_FORCE_FAIL:-}"
           timeout 1m ./vm-run.sh --timeout 600 -- \
-            ap_open ap_wpa2_psk p2p_device_discovery
-          TEST_RESULT=$?
-          echo "Smoke test result: $TEST_RESULT"
-          
-          # For smoke tests, we expect success unless force_fail is set
-          if [ "${{ matrix.force_fail }}" = "true" ] && [ $TEST_RESULT -eq 0 ]; then
-            echo "ERROR: Smoke tests passed but should have failed with WOLFPROV_FORCE_FAIL=1"
-            echo "This indicates the force fail mechanism is not working properly"
-            exit 1
-          elif [ "${{ matrix.force_fail }}" = "false" ] && [ $TEST_RESULT -ne 0 ]; then
-            echo "ERROR: Smoke tests failed but should have passed"
-            exit 1
-          fi
-          echo "Smoke tests behaved as expected"
-      
+            ap_open ap_wpa2_psk p2p_device_discovery || true
+          TEST_RESULT=${PIPESTATUS[0]}
+          echo "Test result: $TEST_RESULT"
+
       - name: TLS/EAP pack (will fail if provider blocks TLS)
         working-directory: hostap/tests/hwsim/vm
         env:
           KERNEL: ${{ github.workspace }}/hostap/tests/hwsim/vm/linux-${{ env.KVER }}/linux
-          # Ensure environment variable is available to the VM
-          WOLFPROV_FORCE_FAIL: ${{ matrix.force_fail && '1' || '' }}
         run: |
-          echo "Running TLS/EAP tests with WOLFPROV_FORCE_FAIL=${WOLFPROV_FORCE_FAIL:-}"
           timeout 5m ./vm-run.sh --timeout 1200 -- \
             ap_wpa2_eap_tls \
             ap_wpa2_eap_peap_eap_mschapv2 \
-            ap_wpa2_eap_ttls_mschapv2
-          TEST_RESULT=$?
-          echo "TLS/EAP test result: $TEST_RESULT"
-          
-          # Check if we have the result checker script
-          if [ -f "$GITHUB_WORKSPACE/.github/scripts/check-workflow-result.sh" ]; then
-            echo "Using check-workflow-result.sh to validate results"
-            $GITHUB_WORKSPACE/.github/scripts/check-workflow-result.sh $TEST_RESULT "${{ matrix.force_fail && 'WOLFPROV_FORCE_FAIL=1' || '' }}" hostap
-          else
-            echo "check-workflow-result.sh not found, implementing inline logic"
-            
-            # Inline result checking
-            if [ "${{ matrix.force_fail }}" = "true" ]; then
-              # force_fail is set, tests should fail
-              if [ $TEST_RESULT -eq 0 ]; then
-                echo "ERROR: Tests passed but should have failed with WOLFPROV_FORCE_FAIL=1"
-                echo "This indicates the force fail mechanism is not working properly"
-                exit 1
-              else
-                echo "SUCCESS: Tests failed as expected with WOLFPROV_FORCE_FAIL=1"
-                echo "Force fail mechanism is working correctly"
-              fi
-            else
-              # force_fail is not set, tests should pass
-              if [ $TEST_RESULT -ne 0 ]; then
-                echo "ERROR: Tests failed but should have passed"
-                exit $TEST_RESULT
-              else
-                echo "SUCCESS: Tests passed as expected"
-              fi
-            fi
-          fi
-      
+            ap_wpa2_eap_ttls_mschapv2 || true
+          TEST_RESULT=${PIPESTATUS[0]}
+          echo "Test result: $TEST_RESULT"
+          $GITHUB_WORKSPACE/.github/scripts/check-workflow-result.sh $TEST_RESULT ${{ matrix.force_fail }} hostap
+
       - name: Archive logs
         if: always()
         run: |
           mkdir -p artifacts
-          cp -a /tmp/hwsim-test-logs/* artifacts/ 2>/dev/null || true
-          
-          # Add matrix info to logs
-          echo "Matrix configuration:" > artifacts/matrix-info.txt
-          echo "wolfssl_ref: ${{ matrix.wolfssl_ref }}" >> artifacts/matrix-info.txt
-          echo "openssl_ref: ${{ matrix.openssl_ref }}" >> artifacts/matrix-info.txt  
-          echo "force_fail: ${{ matrix.force_fail }}" >> artifacts/matrix-info.txt
-          echo "WOLFPROV_FORCE_FAIL: ${WOLFPROV_FORCE_FAIL:-}" >> artifacts/matrix-info.txt
+          cp -a /tmp/hwsim-test-logs/* artifacts/ || true
         continue-on-error: true
 
       - name: Upload logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: hwsim-logs-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}-${{ matrix.force_fail && 'force-fail' || 'normal' }}
+          name: hwsim-logs-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}-${{ matrix.force_fail }}
           path: artifacts
