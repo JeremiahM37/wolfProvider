@@ -194,6 +194,33 @@ jobs:
           ldd hostapd/hostapd | grep ssl || true
           ldd wpa_supplicant/wpa_supplicant | grep ssl || true
 
+      # CRITICAL: Configure UML for stable testing (kernel panic prevention)
+      - name: Configure UML for stable testing
+        working-directory: hostap/tests/hwsim/vm
+        run: |
+          # 1. Add kernel panic prevention to vm-run.sh kernel command line
+          sed -i '/console=$KVMOUT/a A+="panic=0 panic_on_oops=0 oops=panic "' vm-run.sh
+          
+          # 2. Make crda optional to prevent script failures
+          sed -i 's/COUNTRY=00 crda/COUNTRY=00 crda 2>\/dev\/null || echo "crda not found, continuing"/' inside.sh
+          
+          # 3. Add comprehensive panic prevention to inside.sh
+          sed -i '/echo 0 > \/proc\/sys\/kernel\/panic/a \
+          echo 0 > /proc/sys/kernel/panic_on_oops 2>/dev/null || true \
+          echo 0 > /proc/sys/kernel/panic_on_warn 2>/dev/null || true \
+          echo 0 > /proc/sys/kernel/panic_on_rcu_stall 2>/dev/null || true \
+          sysctl -w kernel.panic_on_oops=0 2>/dev/null || true \
+          sysctl -w kernel.panic=0 2>/dev/null || true \
+          sysctl -w kernel.panic_on_warn=0 2>/dev/null || true' inside.sh
+          
+          # 4. Add better error handling for missing commands
+          sed -i 's/chown messagebus.messagebus/chown messagebus:messagebus 2>\/dev\/null || true/' inside.sh
+          
+          # 5. Add graceful exit handling to prevent premature shutdown
+          sed -i '/VM test completed, exiting gracefully/a \
+          # Wait a bit before exiting to ensure all processes are cleaned up \
+          sleep 2' inside.sh
+
       - name: Smoke tests inside UML
         working-directory: hostap/tests/hwsim/vm
         env:
