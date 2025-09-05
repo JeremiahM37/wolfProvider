@@ -57,7 +57,7 @@ jobs:
             libnl-3-dev libnl-genl-3-dev libnl-route-3-dev libdbus-1-dev \
             lcov binutils-dev libpcap-dev libcurl4-openssl-dev libiberty-dev \
             libsqlite3-dev libzstd1 \
-            wireless-tools iw crda wireless-regdb \
+            wireless-tools iw \
             bridge-utils tshark python3-pycryptodome
           # Uninstall system cryptography and reinstall with custom OpenSSL (like VM workflow)
           sudo apt-get remove -y python3-cryptography
