@@ -17,6 +17,10 @@ jobs:
     strategy:
       matrix:
         debug_flag: [ '', '--debug' ]
+    env:
+      WOLFSSL_PACKAGES_PATH: /tmp/wolfssl-packages
+      OPENSSL_PACKAGES_PATH: /tmp/openssl-packages
+      WOLFPROV_PACKAGES_PATH: /tmp/wolfprov-packages
     steps:
     - name: Set up environment
       run: |
@@ -60,37 +64,21 @@ jobs:
         # List all tags
         git tag -l
 
-    - name: Download wolfSSL packages
-      uses: actions/download-artifact@v4
-      with:
-        name: wolfssl-debian-packages-${{ github.sha }}
-        path: /tmp/wolfssl-artifacts
-
-    - name: Download OpenSSL/wolfProvider packages
-      uses: actions/download-artifact@v4
-      with:
-        name: openssl-wolfprov-debian-packages-${{ github.sha }}
-        path: /tmp/openssl-wolfprov-artifacts
-
-    - name: Install wolfSSL debian packages from artifact
+    # TODO: build wolfSSL from repo instead of using tarball, and cache it
+    # Note: we are ignoring inputs.wolfssl_ref
+    - name: Unpack wolfSSL packages
+      if: steps.wolfssl-cache.outputs.cache-hit != 'true'
       run: |
-        set -e
-        echo "WolfSSL artifacts:"
-        ls -la /tmp/wolfssl-artifacts || true
+        $GITHUB_WORKSPACE/debian/install-wolfssl.sh \
+          $GITHUB_WORKSPACE/.github/packages/debian-wolfssl.tar.gz \
+          ${{ env.WOLFSSL_PACKAGES_PATH }}
+        mv ${{ env.WOLFSSL_PACKAGES_PATH }}/debian-packages/* ${{ env.WOLFSSL_PACKAGES_PATH }}
 
-        # Install wolfSSL runtime and headers (from our artifact, not apt)
-        wolfssl_debs=$(ls -1 /tmp/wolfssl-artifacts/*.deb 2>/dev/null || true)
-        if [ -n "$wolfssl_debs" ]; then
-          echo "Installing wolfSSL packages: $wolfssl_debs"
-          apt install -y $wolfssl_debs
-        else
-          echo "ERROR: No wolfSSL .deb files found in artifact"
-          exit 1
-        fi
-
-        # Copy wolfSSL debs into the unified artifacts directory for later upload
-        mkdir -p "/tmp/wolfprov-packages"
-        cp -v /tmp/wolfssl-artifacts/*.deb /tmp/wolfprov-packages/ 2>/dev/null || true
+    - name: Install wolfSSL packages from cache
+      run: |
+        printf "Installing wolfSSL packages:\n"
+        ls -la ${{ env.WOLFSSL_PACKAGES_PATH }}
+        apt install --reinstall -y ${{ env.WOLFSSL_PACKAGES_PATH }}/*wolfssl*.deb
 
     - name: Build Debian package
       run: |
@@ -212,12 +200,9 @@ jobs:
     - name: Upload package artifacts
       if: always()
       uses: actions/upload-artifact@v4
+      continue-on-error: true
       with:
-<<<<<<< HEAD
-        name: wolfprovider-debian-packages${{ matrix.debug_flag }}
-=======
         name: debian-package-test-artifacts-${{ github.sha }}
->>>>>>> 92bcce9 (Squashed commit of the following:)
         path: |
           /tmp/wolfprov-packages/*.deb
           /tmp/wolfprov-packages/*.dsc

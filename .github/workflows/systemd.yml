@@ -4,8 +4,8 @@ name: systemd Tests
 on:
   push:
     branches: ['master', 'main', 'release/**']
-  #pull_request:
-    #branches: ['*']
+  pull_request:
+    branches: ['*']
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -38,8 +38,8 @@ jobs:
     steps:
       - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential meson ninja-build \
+          apt-get update
+          apt-get install -y build-essential meson ninja-build \
             libmount-dev gperf python3-pytest libuv1-dev libnghttp2-dev \
             libcap-dev uuid-dev libdevmapper-dev libpopt-dev libjson-c-dev \
             libargon2-dev libblkid-dev asciidoctor pkgconf zlib1g-dev
@@ -73,7 +73,6 @@ jobs:
       - name: Build systemd
         working-directory: systemd
         run: |
-          source $GITHUB_WORKSPACE/scripts/env-setup
           meson setup -Dnobody-group=nogroup build
           ninja -C build
 
@@ -81,7 +80,6 @@ jobs:
         working-directory: systemd
         run: |
           set +e
-          source $GITHUB_WORKSPACE/scripts/env-setup
           # The following test cases link directly to libcrypto.
           TEST_CASES="fuzz-dns-packet fuzz-etc-hosts fuzz-resource-record \
                       resolvectl systemd-resolved test-cryptolib \

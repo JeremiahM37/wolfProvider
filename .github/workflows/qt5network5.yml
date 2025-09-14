@@ -2,8 +2,8 @@ name: qtbase Network Tests
 on:
   push:
     branches: [ 'master', 'main', 'release/**', 'qt5network5' ]
-  #pull_request:
-    #branches: [ '*' ]
+  pull_request:
+    branches: [ '*' ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -15,48 +15,76 @@ jobs:
     with:
       wolfssl_ref: ${{ matrix.wolfssl_ref }}
       openssl_ref: ${{ matrix.openssl_ref }}
+      replace_default: ${{ matrix.replace_default }}
     strategy:
       matrix:
-        wolfssl_ref: [ 'master', 'v5.8.0-stable' ]
-        openssl_ref: [ 'openssl-3.5.0' ]
+        wolfssl_ref: [ 'v5.8.2-stable' ]
+        openssl_ref: [ 'openssl-3.5.2' ]
+        replace_default: [ true ]
 
   test_qtbase_network:
     runs-on: ubuntu-22.04
+    container:
+      image: debian:bookworm
+      env:
+        DEBIAN_FRONTEND: noninteractive
     needs: build_wolfprovider
     timeout-minutes: 30
     strategy:
       matrix:
-        wolfssl_ref: [ 'master', 'v5.8.0-stable' ]
-        openssl_ref: [ 'openssl-3.5.0' ]
+        wolfssl_ref: [ 'v5.8.2-stable' ]
+        openssl_ref: [ 'openssl-3.5.2' ]
         qt_ref: [ 'dev', 'v5.15.8-lts-lgpl' ]
+        replace_default: [ true ]
         force_fail: [ 'WOLFPROV_FORCE_FAIL=1', '' ]
         exclude:
           - qt_ref: 'dev'
             force_fail: 'WOLFPROV_FORCE_FAIL=1'
+    env:
+      WOLFSSL_PACKAGES_PATH: /tmp/wolfssl-packages
+      OPENSSL_PACKAGES_PATH: /tmp/openssl-packages
+      WOLFPROV_PACKAGES_PATH: /tmp/wolfprov-packages
     steps:
       - name: Checkout wolfProvider
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      - name: Retrieving wolfSSL/wolfProvider from cache
+      - name: Checking OpenSSL/wolfProvider packages in cache
         uses: actions/cache/restore@v4
         id: wolfprov-cache
         with:
           path: |
-            wolfssl-install
-            wolfprov-install
-            openssl-install/lib64
-            openssl-install/include
-            openssl-install/bin
-          key: wolfprov-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}-${{ github.sha }}
+            ${{ env.WOLFSSL_PACKAGES_PATH }}
+            ${{ env.OPENSSL_PACKAGES_PATH }}
+            ${{ env.WOLFPROV_PACKAGES_PATH }}
+          key: openssl-wolfprov-debian-packages-${{ github.sha }}${{ matrix.replace_default && '-replace-default' || '' }}
           fail-on-cache-miss: true
+
+      - name: Install wolfSSL/OpenSSL/wolfprov packages
+        run: |
+          printf "Installing OpenSSL/wolfProvider packages:\n"
+          ls -la ${{ env.WOLFSSL_PACKAGES_PATH }}
+          ls -la ${{ env.OPENSSL_PACKAGES_PATH }}
+          ls -la ${{ env.WOLFPROV_PACKAGES_PATH }}
+
+          apt install --reinstall -y \
+            ${{ env.WOLFSSL_PACKAGES_PATH }}/libwolfssl_*.deb
+
+          apt install --reinstall -y \
+            ${{ env.OPENSSL_PACKAGES_PATH }}/openssl_*.deb \
+            ${{ env.OPENSSL_PACKAGES_PATH }}/libssl3_*.deb \
+            ${{ env.OPENSSL_PACKAGES_PATH }}/libssl-dev_*.deb
+
+          apt install --reinstall -y \
+            ${{ env.WOLFPROV_PACKAGES_PATH }}/libwolfprov_*.deb
 
       - name: Install Qt dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential pkg-config \
-            python3 perl libpcre2-dev zlib1g-dev cmake ninja-build
+          apt-get update
+          apt-get install -y build-essential pkg-config \
+            python3 perl libpcre2-dev zlib1g-dev cmake ninja-build \
+            perl bison flex python3 libpng-dev libjpeg-dev
 
       - name: Checkout OSP
         uses: actions/checkout@v4
@@ -76,9 +104,6 @@ jobs:
       - name: Configure Qt
         working-directory: qt5_repo
         run: |
-          # Set up the environment for wolfProvider
-          source $GITHUB_WORKSPACE/scripts/env-setup
-          
           # Configure Qt with GUI support to avoid test dependency issues
           # Build with GUI support but skip examples and DBus
           ./configure -opensource -confirm-license -developer-build \
@@ -112,13 +137,11 @@ jobs:
 
       - name: Add test server to hosts
         run: |
-          sudo sh -c 'echo "127.0.0.1 qt-test-server.qt-test-net" >> /etc/hosts'
+          sh -c 'echo "127.0.0.1 qt-test-server.qt-test-net" >> /etc/hosts'
 
       - name: Run QSSLSocket test
         working-directory: qt5_repo
         run: |
-          # Set up the environment for wolfProvider
-          source $GITHUB_WORKSPACE/scripts/env-setup
           export ${{ matrix.force_fail }}
           
           # Run the QSSLSocket test, the make check takes too long
