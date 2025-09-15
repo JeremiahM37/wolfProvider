@@ -1,7 +1,7 @@
 name: qtbase Network Tests
 on:
   push:
-    branches: [ 'master', 'main', 'release/**', 'qt5network5' ]
+    branches: [ '*' ] # [ 'master', 'main', 'release/**', 'qt5network5' ]
   pull_request:
     branches: [ '*' ]
 
@@ -84,7 +84,7 @@ jobs:
           apt-get update
           apt-get install -y build-essential pkg-config \
             python3 perl libpcre2-dev zlib1g-dev cmake ninja-build \
-            perl bison flex python3 libpng-dev libjpeg-dev
+            perl bison flex python3 libpng-dev libjpeg-dev dpkg-dev
 
       - name: Checkout OSP
         uses: actions/checkout@v4
@@ -92,7 +92,7 @@ jobs:
           repository: wolfssl/osp
           path: osp
           fetch-depth: 1
-      
+
       - name: Checkout Qt
         uses: actions/checkout@v4
         with:
@@ -116,23 +116,23 @@ jobs:
         run: |
           # Apply patch from OSP repo
           patch -p1 < $GITHUB_WORKSPACE/osp/wolfProvider/qtbase/qtbase-v6.10-wolfprov.patch
-         
+
           # Build the OpenSSL TLS backend plugin first
           ninja QTlsBackendOpenSSLPlugin
-          
+
           # Build only the SSL test and its dependencies
           cmake --build . --target tst_qsslsocket --parallel $(nproc)
 
           #disable tests that both openssl and wolfprovider fail
           cp $GITHUB_WORKSPACE/.github/scripts/qtbase/BLACKLIST tests/auto/network/ssl/qsslsocket/BLACKLIST
-      
+
       - name: Build Qt (v5.15.8 - qmake)
         if: matrix.qt_ref != 'dev'
         working-directory: qt5_repo
         run: |
           # Force C++14 to avoid C++17 compatibility issues
           echo 'QMAKE_CXXFLAGS += -std=c++14' >> mkspecs/linux-g++/qmake.conf
-          
+
           make -k -j$(nproc)
 
       - name: Add test server to hosts
@@ -143,10 +143,10 @@ jobs:
         working-directory: qt5_repo
         run: |
           export ${{ matrix.force_fail }}
-          
+
           # Run the QSSLSocket test, the make check takes too long
           QTEST_ENVIRONMENT=ci ./tests/auto/network/ssl/qsslsocket/tst_qsslsocket 2>&1 | tee qsslsocket-test.log
-          
+
           # Check test results based on qt_ref
           if [[ "${{ matrix.qt_ref }}" == "dev" ]]; then
             if grep -q "0 failed" qsslsocket-test.log; then
