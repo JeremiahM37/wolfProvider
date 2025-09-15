@@ -84,7 +84,7 @@ jobs:
       - name: Install libwebsockets dependencies
         run: |
           apt-get update
-          apt-get install -y libc6 libcap2 zlib1g cmake build-essential openssl
+          apt-get install -y libc6 libcap2 zlib1g cmake build-essential
 
       - name: Download libwebsockets
         uses: actions/checkout@v4
