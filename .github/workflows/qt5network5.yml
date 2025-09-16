@@ -45,17 +45,17 @@ jobs:
       OPENSSL_PACKAGES_PATH: /tmp/openssl-packages
       WOLFPROV_PACKAGES_PATH: /tmp/wolfprov-packages
     steps:
-      - name: Checkout wolfProvider
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-
       - name: Install Qt dependencies
         run: |
           apt-get update
           apt-get install -y build-essential pkg-config dpkg-dev \
             python3 perl libpcre2-dev zlib1g-dev cmake ninja-build \
-            bison flex libpng-dev libjpeg-dev
+            bison flex libpng-dev libjpeg-dev git ca-certificates
+
+      - name: Checkout wolfProvider
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
       - name: Checking OpenSSL/wolfProvider packages in cache
         uses: actions/cache/restore@v4
