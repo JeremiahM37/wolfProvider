@@ -3,7 +3,7 @@ name: libwebsockets Tests
 # START OF COMMON SECTION
 on:
   push:
-    branches: [ '*' ]     # [ 'master', 'main', 'release/**' ]
+    branches: [ '*' ] #[ 'master', 'main', 'release/**' ]
   pull_request:
     branches: [ '*' ]
 
@@ -66,6 +66,11 @@ jobs:
           key: openssl-wolfprov-debian-packages-${{ github.sha }}${{ matrix.replace_default && '-replace-default' || '' }}
           fail-on-cache-miss: true
 
+      - name: Install dpkg-dev (needed for wolfprov package)
+        run: |
+          apt-get update
+          apt-get install -y dpkg-dev
+
       - name: Install wolfSSL/OpenSSL/wolfprov packages
         run: |
           printf "Installing OpenSSL/wolfProvider packages:\n"
@@ -73,17 +78,16 @@ jobs:
           ls -la ${{ env.OPENSSL_PACKAGES_PATH }}
           ls -la ${{ env.WOLFPROV_PACKAGES_PATH }}
           apt install --reinstall -y \
-            ${{ env.WOLFSSL_PACKAGES_PATH }}/libwolfssl_*.deb
+            ${{ env.WOLFSSL_PACKAGES_PATH }}/libwolfssl*.deb
           apt install --reinstall -y \
-            ${{ env.OPENSSL_PACKAGES_PATH }}/openssl_*.deb \
-            ${{ env.OPENSSL_PACKAGES_PATH }}/libssl3_*.deb \
-            ${{ env.OPENSSL_PACKAGES_PATH }}/libssl-dev_*.deb
+            ${{ env.OPENSSL_PACKAGES_PATH }}/openssl*.deb \
+            ${{ env.OPENSSL_PACKAGES_PATH }}/libssl3*.deb \
+            ${{ env.OPENSSL_PACKAGES_PATH }}/libssl-dev*.deb
           apt install --reinstall -y \
             ${{ env.WOLFPROV_PACKAGES_PATH }}/libwolfprov_*.deb
 
       - name: Install libwebsockets dependencies
         run: |
-          apt-get update
           apt-get install -y libc6 libcap2 zlib1g cmake build-essential
 
       - name: Download libwebsockets
@@ -105,7 +109,7 @@ jobs:
         working-directory: libwebsockets
         run: |
           cd build
-          cmake .. -DLWS_WITH_SSL=ON -DLWS_OPENSSL_LIBRARIES=/usr/lib/x86_64-linux-gnu/libssl.so -DLWS_OPENSSL_INCLUDE_DIRS=/usr/include/openssl
+          cmake .. -DLWS_WITH_SSL=ON
           make -j$(nproc)
           # Skip make install to avoid certificate installation issues
           # make install
@@ -113,9 +117,6 @@ jobs:
       # Set up wolfProvider environment before running tests
       - name: Setup wolfProvider environment
         run: |
-          if [ -f $GITHUB_WORKSPACE/scripts/env-setup ]; then
-            source $GITHUB_WORKSPACE/scripts/env-setup
-          fi
           # Alternative: Set up environment variables manually if env-setup script doesn't exist
           export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
           export OPENSSL_CONF=/etc/ssl/openssl.cnf
@@ -124,10 +125,6 @@ jobs:
         working-directory: libwebsockets
         shell: bash
         run: |
-          # Set up wolfProvider environment
-          if [ -f $GITHUB_WORKSPACE/scripts/env-setup ]; then
-            source $GITHUB_WORKSPACE/scripts/env-setup
-          fi
           export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
 
           export ${{ matrix.force_fail }}

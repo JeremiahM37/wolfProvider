@@ -1,7 +1,7 @@
 name: qtbase Network Tests
 on:
   push:
-    branches: [ '*' ] # [ 'master', 'main', 'release/**', 'qt5network5' ]
+    branches: [ '*' ] #[ 'master', 'main', 'release/**', 'qt5network5' ]
   pull_request:
     branches: [ '*' ]
 
@@ -61,30 +61,30 @@ jobs:
           key: openssl-wolfprov-debian-packages-${{ github.sha }}${{ matrix.replace_default && '-replace-default' || '' }}
           fail-on-cache-miss: true
 
+      - name: Install dpkg-dev (needed for wolfprov package)
+        run: |
+          apt-get update
+          apt-get install -y dpkg-dev
+
       - name: Install wolfSSL/OpenSSL/wolfprov packages
         run: |
           printf "Installing OpenSSL/wolfProvider packages:\n"
           ls -la ${{ env.WOLFSSL_PACKAGES_PATH }}
           ls -la ${{ env.OPENSSL_PACKAGES_PATH }}
           ls -la ${{ env.WOLFPROV_PACKAGES_PATH }}
-
           apt install --reinstall -y \
-            ${{ env.WOLFSSL_PACKAGES_PATH }}/libwolfssl_*.deb
-
+            ${{ env.WOLFSSL_PACKAGES_PATH }}/libwolfssl*.deb
           apt install --reinstall -y \
-            ${{ env.OPENSSL_PACKAGES_PATH }}/openssl_*.deb \
-            ${{ env.OPENSSL_PACKAGES_PATH }}/libssl3_*.deb \
-            ${{ env.OPENSSL_PACKAGES_PATH }}/libssl-dev_*.deb
-
+            ${{ env.OPENSSL_PACKAGES_PATH }}/openssl*.deb \
+            ${{ env.OPENSSL_PACKAGES_PATH }}/libssl3*.deb \
+            ${{ env.OPENSSL_PACKAGES_PATH }}/libssl-dev*.deb
           apt install --reinstall -y \
             ${{ env.WOLFPROV_PACKAGES_PATH }}/libwolfprov_*.deb
 
-      - name: Install Qt dependencies
+      - name: Install Qt and dpkg dependencies
         run: |
-          apt-get update
           apt-get install -y build-essential pkg-config \
-            python3 perl libpcre2-dev zlib1g-dev cmake ninja-build \
-            perl bison flex python3 libpng-dev libjpeg-dev dpkg-dev
+            python3 perl libpcre2-dev zlib1g-dev cmake ninja-build
 
       - name: Checkout OSP
         uses: actions/checkout@v4
