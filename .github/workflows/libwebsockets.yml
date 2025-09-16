@@ -3,7 +3,7 @@ name: libwebsockets Tests
 # START OF COMMON SECTION
 on:
   push:
-    branches: [ '*' ] #[ 'master', 'main', 'release/**' ]
+    branches: [ '*' ] # 'master', 'main', 'release/**' ]
   pull_request:
     branches: [ '*' ]
 
@@ -55,6 +55,11 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Install libwebsockets dependencies
+        run: |
+          apt-get update
+          apt-get install -y libc6 libcap2 zlib1g cmake build-essential dpkg-dev
+
       - name: Checking OpenSSL/wolfProvider packages in cache
         uses: actions/cache/restore@v4
         id: wolfprov-cache-restore
@@ -65,11 +70,6 @@ jobs:
             ${{ env.WOLFPROV_PACKAGES_PATH }}
           key: openssl-wolfprov-debian-packages-${{ github.sha }}${{ matrix.replace_default && '-replace-default' || '' }}
           fail-on-cache-miss: true
-
-      - name: Install dpkg-dev (needed for wolfprov package)
-        run: |
-          apt-get update
-          apt-get install -y dpkg-dev
 
       - name: Install wolfSSL/OpenSSL/wolfprov packages
         run: |
@@ -86,10 +86,6 @@ jobs:
           apt install --reinstall -y \
             ${{ env.WOLFPROV_PACKAGES_PATH }}/libwolfprov_*.deb
 
-      - name: Install libwebsockets dependencies
-        run: |
-          apt-get install -y libc6 libcap2 zlib1g cmake build-essential
-
       - name: Download libwebsockets
         uses: actions/checkout@v4
         with:
@@ -104,7 +100,7 @@ jobs:
           cd build
           cmake .. -DLWS_WITH_SSL=ON
           make -j$(nproc)
-          make install
+          # Skip make install to avoid certificate installation issues
 
       - name: Run libwebsockets tests
         working-directory: libwebsockets
