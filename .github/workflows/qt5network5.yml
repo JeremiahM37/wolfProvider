@@ -81,7 +81,7 @@ jobs:
           apt install --reinstall -y \
             ${{ env.WOLFPROV_PACKAGES_PATH }}/libwolfprov_*.deb
 
-      - name: Install Qt and dpkg dependencies
+      - name: Install Qt dependencies
         run: |
           apt-get install -y build-essential pkg-config \
             python3 perl libpcre2-dev zlib1g-dev cmake ninja-build

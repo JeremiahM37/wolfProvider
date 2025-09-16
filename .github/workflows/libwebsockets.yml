@@ -97,36 +97,19 @@ jobs:
           ref: ${{ matrix.libwebsockets_ref }}
           path: libwebsockets
 
-      # Generate test certificates before building
-      - name: Generate test certificates
-        working-directory: libwebsockets
-        run: |
-          mkdir -p build
-          cd build
-          openssl req -x509 -newkey rsa:2048 -keyout libwebsockets-test-server.key.pem -out libwebsockets-test-server.pem -days 365 -nodes -subj "/CN=localhost"
-
       - name: Build libwebsockets
         working-directory: libwebsockets
         run: |
+          mkdir build
           cd build
           cmake .. -DLWS_WITH_SSL=ON
           make -j$(nproc)
-          # Skip make install to avoid certificate installation issues
-          # make install
-
-      # Set up wolfProvider environment before running tests
-      - name: Setup wolfProvider environment
-        run: |
-          # Alternative: Set up environment variables manually if env-setup script doesn't exist
-          export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
-          export OPENSSL_CONF=/etc/ssl/openssl.cnf
+          make install
 
       - name: Run libwebsockets tests
         working-directory: libwebsockets
         shell: bash
         run: |
-          export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
-
           export ${{ matrix.force_fail }}
           ./build/bin/libwebsockets-test-server --port=11111 --ssl > server.log 2>&1 & SERVER_PID=$!
           sleep 5
