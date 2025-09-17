@@ -133,6 +133,13 @@ jobs:
           ./configure --without-samba --disable-cifs-idmap-plugin \
           --without-nfsv4-idmapd-plugin --with-oidc-child=no
 
+          # Fix the OpenSSL binary path issue - use the custom-built OpenSSL that matches the libraries
+          echo "=== Fixing OpenSSL binary path ==="
+          export PATH="$GITHUB_WORKSPACE/openssl-install/bin:$PATH"
+          echo "Updated PATH: $PATH"
+          echo "OpenSSL binary now: $(which openssl)"
+          echo "OpenSSL version check: $(openssl version)"
+
           # Debug the failing make command
           echo "=== Attempting SSSD build with debug ==="
           make -j V=1 2>&1 | tee build.log || {
@@ -143,11 +150,11 @@ jobs:
               ls -la
               echo "=== SSSD_test_ECC_CA.config contents ==="
               cat SSSD_test_ECC_CA.config || echo "Config file not found"
-              echo "=== Manual OpenSSL test ==="
-              /usr/bin/openssl req -batch -config ./SSSD_test_ECC_CA.config -x509 -new -nodes -key SSSD_test_ECC_CA_key.pem -sha384 -days 1024 -set_serial 0 -extensions v3_ca -out SSSD_test_ECC_CA.pem -verbose 2>&1 || echo "Manual OpenSSL command failed"
+              echo "=== Manual OpenSSL test with correct binary ==="
+              openssl req -batch -config ./SSSD_test_ECC_CA.config -x509 -new -nodes -key SSSD_test_ECC_CA_key.pem -sha384 -days 1024 -set_serial 0 -extensions v3_ca -out SSSD_test_ECC_CA.pem -verbose 2>&1 || echo "Manual OpenSSL command failed"
               echo "=== OpenSSL error details ==="
-              /usr/bin/openssl version
-              /usr/bin/openssl list -providers 2>&1 || echo "Provider list failed"
+              openssl version
+              openssl list -providers 2>&1 || echo "Provider list failed"
             fi
             exit 1
           }
@@ -183,6 +190,7 @@ jobs:
           make check 2>&1 | tee sssd-test.log
           TEST_RESULT=${PIPESTATUS[0]}
           $GITHUB_WORKSPACE/.github/scripts/check-workflow-result.sh $TEST_RESULT ${{ matrix.force_fail }} sssd
+
 
 
 
