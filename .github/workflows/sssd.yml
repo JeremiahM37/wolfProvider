@@ -89,7 +89,16 @@ jobs:
           apt-get update
           apt-get install -y build-essential autoconf automake libtool \
           gettext autopoint pkg-config libldb-dev libldb2 python3-ldb \
-          bc libcap-dev libutf8proc-dev git libpopt-dev
+          bc libcap-dev libutf8proc-dev git libpopt-dev \
+          libtalloc-dev libtdb-dev libtevent-dev
+
+      - name: Setup LDB header symlinks
+        run: |
+          ln -sf samba-4.0/ldb.h /usr/include/ldb.h
+          ln -sf samba-4.0/ldb_errors.h /usr/include/ldb_errors.h
+          ln -sf samba-4.0/ldb_handlers.h /usr/include/ldb_handlers.h
+          ln -sf samba-4.0/ldb_module.h /usr/include/ldb_module.h
+          ln -sf samba-4.0/ldb_version.h /usr/include/ldb_version.h
 
       - name: Checkout OSP
         uses: actions/checkout@v4
@@ -142,6 +151,7 @@ jobs:
           make check 2>&1 | tee sssd-test.log
           TEST_RESULT=${PIPESTATUS[0]}
           $GITHUB_WORKSPACE/.github/scripts/check-workflow-result.sh $TEST_RESULT ${{ matrix.force_fail }} sssd
+
 
 
 
