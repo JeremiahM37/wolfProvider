@@ -1,7 +1,7 @@
 name: qtbase Network Tests
 on:
   push:
-    branches: # [ '*' ] # 'master', 'main', 'release/**', 'qt5network5' ]
+    branches: [ 'master', 'main', 'release/**' ]
   pull_request:
     branches: [ '*' ]
 

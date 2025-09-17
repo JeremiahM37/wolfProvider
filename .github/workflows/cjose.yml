@@ -3,7 +3,7 @@ name: cjose Tests
 # START OF COMMON SECTION
 on:
   push:
-    branches: [ '**' ] # 'master', 'main', 'release/**' ]
+    branches: [ 'master', 'main', 'release/**' ]
   pull_request:
     branches: [ '*' ]
 
@@ -20,7 +20,7 @@ jobs:
       openssl_ref: ${{ matrix.openssl_ref }}
       replace_default: ${{ matrix.replace_default }}
     strategy:
-      matrix: 
+      matrix:
         # Test 5.8.2 since our .deb is based on that version
         wolfssl_ref: [ 'v5.8.2-stable' ]
         openssl_ref: [ 'openssl-3.5.2' ]
