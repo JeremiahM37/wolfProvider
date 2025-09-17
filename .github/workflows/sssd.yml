@@ -138,19 +138,19 @@ jobs:
               if [ -f src/tests/test_ECC_CA/Makefile ]; then
                 # Create a wrapper script for OpenSSL that disables wolfProvider for ECC operations
                 cat > src/tests/test_ECC_CA/openssl_ecc_wrapper.sh << 'WRAPPER_EOF'
-              #!/bin/bash
-              # Wrapper script to use default provider for ECC certificate generation
-              case "$*" in
-                *"SSSD_test_ECC_CA"*"-x509"*)
-                  echo "Using default provider for ECC CA certificate generation..."
-                  OPENSSL_CONF="" OPENSSL_MODULES="" /usr/bin/openssl "$@"
-                  ;;
-                *)
-                  # Use normal OpenSSL for other operations
-                  /usr/bin/openssl "$@"
-                  ;;
-              esac
-              WRAPPER_EOF
+#!/bin/bash
+# Wrapper script to use default provider for ECC certificate generation
+case "$*" in
+  *"SSSD_test_ECC_CA"*"-x509"*)
+    echo "Using default provider for ECC CA certificate generation..."
+    OPENSSL_CONF="" OPENSSL_MODULES="" /usr/bin/openssl "$@"
+    ;;
+  *)
+    # Use normal OpenSSL for other operations
+    /usr/bin/openssl "$@"
+    ;;
+esac
+WRAPPER_EOF
                 chmod +x src/tests/test_ECC_CA/openssl_ecc_wrapper.sh
                 
                 # Replace openssl calls in the Makefile with our wrapper  
