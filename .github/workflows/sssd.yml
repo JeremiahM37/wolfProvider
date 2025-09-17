@@ -151,7 +151,28 @@ jobs:
               echo "=== SSSD_test_ECC_CA.config contents ==="
               cat SSSD_test_ECC_CA.config || echo "Config file not found"
               echo "=== Manual OpenSSL test with correct binary ==="
-              openssl req -batch -config ./SSSD_test_ECC_CA.config -x509 -new -nodes -key SSSD_test_ECC_CA_key.pem -sha384 -days 1024 -set_serial 0 -extensions v3_ca -out SSSD_test_ECC_CA.pem -verbose 2>&1 || echo "Manual OpenSSL command failed"
+              echo "Testing if key file exists and is readable:"
+              ls -la SSSD_test_ECC_CA_key.pem
+              file SSSD_test_ECC_CA_key.pem
+              echo "Key file contents:"
+              cat SSSD_test_ECC_CA_key.pem
+
+              echo "Testing OpenSSL req command step by step:"
+              echo "1. Testing config file parsing:"
+              openssl req -config ./SSSD_test_ECC_CA.config -text -noout 2>&1 || echo "Config parsing failed"
+
+              echo "2. Testing key file reading:"
+              openssl pkey -in SSSD_test_ECC_CA_key.pem -text -noout 2>&1 || echo "Key reading failed"
+
+              echo "3. Running the full command with detailed error output:"
+              openssl req -batch -config ./SSSD_test_ECC_CA.config -x509 -new -nodes -key SSSD_test_ECC_CA_key.pem -sha384 -days 1024 -set_serial 0 -extensions v3_ca -out SSSD_test_ECC_CA.pem -verbose 2>&1
+              OPENSSL_EXIT_CODE=$?
+              echo "OpenSSL exit code: $OPENSSL_EXIT_CODE"
+
+              if [ $OPENSSL_EXIT_CODE -ne 0 ]; then
+                echo "4. Testing with system OpenSSL for comparison:"
+                /usr/bin/openssl req -batch -config ./SSSD_test_ECC_CA.config -x509 -new -nodes -key SSSD_test_ECC_CA_key.pem -sha384 -days 1024 -set_serial 0 -extensions v3_ca -out SSSD_test_ECC_CA_system.pem -verbose 2>&1 || echo "System OpenSSL also failed"
+              fi
               echo "=== OpenSSL error details ==="
               openssl version
               openssl list -providers 2>&1 || echo "Provider list failed"
@@ -190,6 +211,7 @@ jobs:
           make check 2>&1 | tee sssd-test.log
           TEST_RESULT=${PIPESTATUS[0]}
           $GITHUB_WORKSPACE/.github/scripts/check-workflow-result.sh $TEST_RESULT ${{ matrix.force_fail }} sssd
+
 
 
 
