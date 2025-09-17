@@ -28,7 +28,7 @@ jobs:
   test_sssd:
     runs-on: ubuntu-22.04
     container:
-      image: debian:bookworm
+      image: quay.io/sssd/ci-client-devel:ubuntu-latest
       env:
         DEBIAN_FRONTEND: noninteractive
     needs: build_wolfprovider
@@ -73,29 +73,23 @@ jobs:
           ls -la ${{ env.OPENSSL_PACKAGES_PATH }}
           ls -la ${{ env.WOLFPROV_PACKAGES_PATH }}
 
-          apt install --reinstall -y \
-            ${{ env.WOLFSSL_PACKAGES_PATH }}/libwolfssl_*.deb
+          # Install Debian packages in Ubuntu container
+          # Note: These are Debian packages but should work in Ubuntu
+          dpkg -i ${{ env.WOLFSSL_PACKAGES_PATH }}/libwolfssl_*.deb || true
+          dpkg -i ${{ env.OPENSSL_PACKAGES_PATH }}/openssl_*.deb || true
+          dpkg -i ${{ env.OPENSSL_PACKAGES_PATH }}/libssl3_*.deb || true
+          dpkg -i ${{ env.OPENSSL_PACKAGES_PATH }}/libssl-dev_*.deb || true
+          dpkg -i ${{ env.WOLFPROV_PACKAGES_PATH }}/libwolfprov_*.deb || true
 
-          apt install --reinstall -y \
-            ${{ env.OPENSSL_PACKAGES_PATH }}/openssl_*.deb \
-            ${{ env.OPENSSL_PACKAGES_PATH }}/libssl3_*.deb \
-            ${{ env.OPENSSL_PACKAGES_PATH }}/libssl-dev_*.deb
-
-          apt install --reinstall -y \
-            ${{ env.WOLFPROV_PACKAGES_PATH }}/libwolfprov_*.deb
-
-      - name: Install dependencies
-        run: |
+          # Fix any dependency issues
           apt-get update
-          # Install SSSD build dependencies from Debian package
-          apt-get build-dep -y sssd || true
-          # Install additional dependencies we need
-          apt-get install -y build-essential autoconf automake libtool \
-          gettext autopoint pkg-config libldb-dev libldb2 python3-ldb \
-          bc libcap-dev libutf8proc-dev git libpopt-dev \
-          libtalloc-dev libtdb-dev libtevent-dev libdhash-dev \
-          libini-config-dev libcollection-dev libpath-utils-dev \
-          libref-array-dev
+          apt-get install -f -y
+
+      - name: Install additional dependencies
+        run: |
+          # Install any additional build tools that might be missing
+          apt-get install -y build-essential autoconf libldb-dev \
+          libldb2 python3-ldb bc libcap-dev libutf8proc-dev git
 
       - name: Setup LDB header symlinks
         run: |
@@ -156,6 +150,7 @@ jobs:
           make check 2>&1 | tee sssd-test.log
           TEST_RESULT=${PIPESTATUS[0]}
           $GITHUB_WORKSPACE/.github/scripts/check-workflow-result.sh $TEST_RESULT ${{ matrix.force_fail }} sssd
+
 
 
 
