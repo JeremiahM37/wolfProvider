@@ -1,14 +1,17 @@
 name: SSSD Tests
+
 # START OF COMMON SECTION
 on:
   push:
     branches: [ '*' ] # 'master', 'main', 'release/**' ]
   pull_request:
     branches: [ '*' ]
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 # END OF COMMON SECTION
+
 jobs:
   test_sssd:
     runs-on: ubuntu-22.04
@@ -16,8 +19,8 @@ jobs:
     container:
       image: quay.io/sssd/ci-client-devel:ubuntu-latest
       env:
-        LD_LIBRARY_PATH: /usr/local/lib:/github/home/wolfssl-install/lib:/github/home/openssl-install/lib64
         DEBIAN_FRONTEND: noninteractive
+        LD_LIBRARY_PATH: /usr/local/lib:/github/home/wolfssl-install/lib:/github/home/openssl-install/lib64
     strategy:
       fail-fast: false
       matrix:
@@ -29,14 +32,6 @@ jobs:
           - sssd_ref: 'master'
             force_fail: 'WOLFPROV_FORCE_FAIL=1'
     steps:
-      - name: Install dependencies
-        run: |
-          # Don't prompt for anything
-          export DEBIAN_FRONTEND=noninteractive
-          apt-get update
-          apt-get install -y build-essential autoconf libldb-dev \
-          libldb2 python3-ldb bc libcap-dev libutf8proc-dev git
-
       - name: Checkout wolfProvider
         uses: actions/checkout@v4
         with:
@@ -63,22 +58,11 @@ jobs:
         run: |
           OPENSSL_TAG=${{ matrix.openssl_ref }} WOLFSSL_TAG=${{ matrix.wolfssl_ref }} ./scripts/build-wolfprovider.sh
 
-      - name: Setup wolfProvider environment
+      - name: Install dependencies
         run: |
-          # Set up environment for wolfProvider
-          source $GITHUB_WORKSPACE/scripts/env-setup
-
-          # Configure OpenSSL to load wolfProvider as default
-          export OPENSSL_CONF_INCLUDE=$GITHUB_WORKSPACE/openssl-install/ssl
-          export OPENSSL_CONF=$GITHUB_WORKSPACE/openssl-install/ssl/openssl.cnf
-
-          # Verify wolfProvider is available
-          echo "Checking if wolfProvider is loaded:"
-          openssl list -providers
-
-          # Test that wolfProvider works
-          echo "Testing wolfProvider functionality:"
-          openssl version
+          apt-get update
+          apt-get install -y build-essential autoconf libldb-dev \
+          libldb2 python3-ldb bc libcap-dev libutf8proc-dev git
 
       - name: Setup env
         run: |
@@ -88,6 +72,38 @@ jobs:
           ln -s samba-4.0/ldb_module.h /usr/include/ldb_module.h
           ln -s samba-4.0/ldb_version.h /usr/include/ldb_version.h
 
+      - name: Configure wolfProvider for OpenSSL
+        shell: bash
+        run: |
+          # Set up environment variables for wolfProvider
+          export LD_LIBRARY_PATH="$GITHUB_WORKSPACE/wolfprov-install/lib:$GITHUB_WORKSPACE/wolfssl-install/lib:$GITHUB_WORKSPACE/openssl-install/lib64:$LD_LIBRARY_PATH"
+          export PKG_CONFIG_PATH="$GITHUB_WORKSPACE/openssl-install/lib64/pkgconfig:$PKG_CONFIG_PATH"
+          export PATH="$GITHUB_WORKSPACE/openssl-install/bin:$PATH"
+
+          # Create OpenSSL config to load wolfProvider
+          mkdir -p /etc/ssl
+          cat > /etc/ssl/openssl.cnf << 'EOF'
+          openssl_conf = openssl_init
+
+          [openssl_init]
+          providers = provider_sect
+
+          [provider_sect]
+          default = default_sect
+          wolfprov = wolfprov_sect
+
+          [default_sect]
+          activate = 1
+
+          [wolfprov_sect]
+          activate = 1
+          module = $GITHUB_WORKSPACE/wolfprov-install/lib/libwolfprov.so
+          EOF
+
+          # Test that wolfProvider is loaded
+          echo "Testing wolfProvider setup:"
+          openssl list -providers
+
       - name: Checkout OSP
         uses: actions/checkout@v4
         with:
@@ -96,16 +112,21 @@ jobs:
           fetch-depth: 1
 
       - name: Build and test sssd with wolfProvider
+        shell: bash
         run: |
-          # Set up environment for wolfProvider
-          source $GITHUB_WORKSPACE/scripts/env-setup
+          # Set up wolfProvider environment
+          export LD_LIBRARY_PATH="$GITHUB_WORKSPACE/wolfprov-install/lib:$GITHUB_WORKSPACE/wolfssl-install/lib:$GITHUB_WORKSPACE/openssl-install/lib64:$LD_LIBRARY_PATH"
+          export PKG_CONFIG_PATH="$GITHUB_WORKSPACE/openssl-install/lib64/pkgconfig:$PKG_CONFIG_PATH"
+          export PATH="$GITHUB_WORKSPACE/openssl-install/bin:$PATH"
 
           # Clone SSSD
           git clone https://github.com/SSSD/sssd.git
           cd sssd
           git checkout ${{ matrix.sssd_ref }}
+
           # Apply patch for testing
           patch -p1 < $GITHUB_WORKSPACE/osp/wolfProvider/sssd/sssd-${{ matrix.sssd_ref }}-wolfprov.patch
+
           # Configure and build SSSD with wolfProvider
           autoreconf -ivf
           ./configure --without-samba --disable-cifs-idmap-plugin \
@@ -116,22 +137,23 @@ jobs:
         working-directory: sssd
         shell: bash
         run: |
-          # Set up environment for wolfProvider
-          source $GITHUB_WORKSPACE/scripts/env-setup
+          # Set up wolfProvider environment
+          export LD_LIBRARY_PATH="$GITHUB_WORKSPACE/wolfprov-install/lib:$GITHUB_WORKSPACE/wolfssl-install/lib:$GITHUB_WORKSPACE/openssl-install/lib64:$LD_LIBRARY_PATH"
+          export PKG_CONFIG_PATH="$GITHUB_WORKSPACE/openssl-install/lib64/pkgconfig:$PKG_CONFIG_PATH"
+          export PATH="$GITHUB_WORKSPACE/openssl-install/bin:$PATH"
           export ${{ matrix.force_fail }}
 
           echo "Checking OpenSSL providers:"
           openssl list -providers | tee provider-list.log
 
-          # Check if wolfProvider is loaded
-          if grep -q "wolfSSL Provider\|libwolfprov" provider-list.log; then
-            echo "SUCCESS: wolfProvider found in OpenSSL providers"
-          else
-            echo "ERROR: wolfProvider not found in OpenSSL providers"
+          # Verify wolfProvider is loaded
+          if ! grep -q libwolfprov provider-list.log; then
+            echo "ERROR: libwolfprov not found in OpenSSL providers"
             echo "Available providers:"
             cat provider-list.log
-            echo "Environment variables:"
-            env | grep -E "(OPENSSL|WOLFSSL|LD_LIBRARY)"
+            echo "LD_LIBRARY_PATH: $LD_LIBRARY_PATH"
+            echo "Checking if libwolfprov.so exists:"
+            ls -la $GITHUB_WORKSPACE/wolfprov-install/lib/libwolfprov.so || echo "libwolfprov.so not found"
             exit 1
           fi
 
@@ -139,6 +161,7 @@ jobs:
           if [ "${{ matrix.force_fail }}" == "WOLFPROV_FORCE_FAIL=1" ]; then
             set +e
           fi
+
           # Run tests and save result
           make check 2>&1 | tee sssd-test.log
           TEST_RESULT=${PIPESTATUS[0]}
