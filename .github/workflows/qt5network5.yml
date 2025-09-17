@@ -140,6 +140,7 @@ jobs:
         working-directory: qt5_repo
         shell: bash
         run: |
+          set +e # Don't exit on test failures, we'll check results manually
           export ${{ matrix.force_fail }}
 
           # Run the QSSLSocket test, the make check takes too long
@@ -157,6 +158,7 @@ jobs:
             #No easy way to disable tests in v5.15.8. Both openssl and wolfprovider should always pass 521 tests on this version though
             if grep -q "521 passed" qsslsocket-test.log; then
               TEST_RESULT=0
+              echo "SUCCESS: Found 521 passed tests as expected"
             else
               TEST_RESULT=1
               echo "Tests failed unexpectedly for 'v5.15.8-lts-lgpl' branch."
