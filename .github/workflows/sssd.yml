@@ -172,8 +172,10 @@ jobs:
               }
 
               echo "3. Running the full command with detailed error output:"
+              set +e  # Don't exit on error
               openssl req -batch -config ./SSSD_test_ECC_CA.config -x509 -new -nodes -key SSSD_test_ECC_CA_key.pem -sha384 -days 1024 -set_serial 0 -extensions v3_ca -out SSSD_test_ECC_CA.pem -verbose 2>&1
               OPENSSL_EXIT_CODE=$?
+              set -e  # Re-enable exit on error
               echo "OpenSSL exit code: $OPENSSL_EXIT_CODE"
 
               if [ $OPENSSL_EXIT_CODE -ne 0 ]; then
@@ -272,6 +274,8 @@ jobs:
           make check 2>&1 | tee sssd-test.log
           TEST_RESULT=${PIPESTATUS[0]}
           $GITHUB_WORKSPACE/.github/scripts/check-workflow-result.sh $TEST_RESULT ${{ matrix.force_fail }} sssd
+
+
 
 
 
