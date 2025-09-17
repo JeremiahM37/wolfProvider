@@ -63,6 +63,7 @@ jobs:
           OPENSSL_TAG=${{ matrix.openssl_ref }} WOLFSSL_TAG=${{ matrix.wolfssl_ref }} ./scripts/build-wolfprovider.sh
 
       - name: Setup wolfProvider environment
+        shell: bash
         run: |
           # Set up environment for wolfProvider
           . $GITHUB_WORKSPACE/scripts/env-setup
@@ -95,6 +96,7 @@ jobs:
           fetch-depth: 1
 
       - name: Build and test sssd with wolfProvider
+        shell: bash
         run: |
           # Set up environment for wolfProvider
           . $GITHUB_WORKSPACE/scripts/env-setup
