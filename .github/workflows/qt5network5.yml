@@ -138,6 +138,7 @@ jobs:
 
       - name: Run QSSLSocket test
         working-directory: qt5_repo
+        shell: bash
         run: |
           export ${{ matrix.force_fail }}
 
