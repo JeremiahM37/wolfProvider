@@ -94,6 +94,28 @@ jobs:
           path: osp
           fetch-depth: 1
 
+      - name: Debug OpenSSL environment
+        shell: bash
+        run: |
+          # Set up environment for wolfProvider
+          source $GITHUB_WORKSPACE/scripts/env-setup
+
+          echo "=== OpenSSL Environment Debug ==="
+          echo "OPENSSL_CONF: $OPENSSL_CONF"
+          echo "OPENSSL_MODULES: $OPENSSL_MODULES"
+          echo "LD_LIBRARY_PATH: $LD_LIBRARY_PATH"
+          echo "PATH: $PATH"
+
+          echo "=== OpenSSL Binary Info ==="
+          which openssl
+          openssl version -a
+
+          echo "=== OpenSSL Provider Test ==="
+          openssl list -providers || echo "Provider list failed"
+
+          echo "=== Library Dependencies ==="
+          ldd $(which openssl) || echo "ldd failed"
+
       - name: Build and test sssd with wolfProvider
         shell: bash
         run: |
@@ -110,7 +132,25 @@ jobs:
           autoreconf -ivf
           ./configure --without-samba --disable-cifs-idmap-plugin \
           --without-nfsv4-idmapd-plugin --with-oidc-child=no
-          make -j
+
+          # Debug the failing make command
+          echo "=== Attempting SSSD build with debug ==="
+          make -j V=1 2>&1 | tee build.log || {
+            echo "=== Build failed, checking test_ECC_CA directory ==="
+            if [ -d src/tests/test_ECC_CA ]; then
+              cd src/tests/test_ECC_CA
+              echo "=== Contents of test_ECC_CA directory ==="
+              ls -la
+              echo "=== SSSD_test_ECC_CA.config contents ==="
+              cat SSSD_test_ECC_CA.config || echo "Config file not found"
+              echo "=== Manual OpenSSL test ==="
+              /usr/bin/openssl req -batch -config ./SSSD_test_ECC_CA.config -x509 -new -nodes -key SSSD_test_ECC_CA_key.pem -sha384 -days 1024 -set_serial 0 -extensions v3_ca -out SSSD_test_ECC_CA.pem -verbose 2>&1 || echo "Manual OpenSSL command failed"
+              echo "=== OpenSSL error details ==="
+              /usr/bin/openssl version
+              /usr/bin/openssl list -providers 2>&1 || echo "Provider list failed"
+            fi
+            exit 1
+          }
 
       - name: Run tests
         working-directory: sssd
@@ -143,6 +183,7 @@ jobs:
           make check 2>&1 | tee sssd-test.log
           TEST_RESULT=${PIPESTATUS[0]}
           $GITHUB_WORKSPACE/.github/scripts/check-workflow-result.sh $TEST_RESULT ${{ matrix.force_fail }} sssd
+
 
 
 
