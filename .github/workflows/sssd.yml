@@ -87,10 +87,15 @@ jobs:
       - name: Install dependencies
         run: |
           apt-get update
+          # Install SSSD build dependencies from Debian package
+          apt-get build-dep -y sssd || true
+          # Install additional dependencies we need
           apt-get install -y build-essential autoconf automake libtool \
           gettext autopoint pkg-config libldb-dev libldb2 python3-ldb \
           bc libcap-dev libutf8proc-dev git libpopt-dev \
-          libtalloc-dev libtdb-dev libtevent-dev libdhash-dev
+          libtalloc-dev libtdb-dev libtevent-dev libdhash-dev \
+          libini-config-dev libcollection-dev libpath-utils-dev \
+          libref-array-dev
 
       - name: Setup LDB header symlinks
         run: |
@@ -151,6 +156,7 @@ jobs:
           make check 2>&1 | tee sssd-test.log
           TEST_RESULT=${PIPESTATUS[0]}
           $GITHUB_WORKSPACE/.github/scripts/check-workflow-result.sh $TEST_RESULT ${{ matrix.force_fail }} sssd
+
 
 
 
