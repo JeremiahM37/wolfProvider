@@ -89,7 +89,7 @@ jobs:
           apt-get update
           apt-get install -y build-essential autoconf automake libtool \
           gettext autopoint pkg-config libldb-dev libldb2 python3-ldb \
-          bc libcap-dev libutf8proc-dev git
+          bc libcap-dev libutf8proc-dev git libpopt-dev
 
       - name: Checkout OSP
         uses: actions/checkout@v4
