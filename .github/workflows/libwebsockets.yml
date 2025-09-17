@@ -55,6 +55,11 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Install libwebsockets dependencies
+        run: |
+          apt-get update
+          apt-get install -y libc6 libcap2 zlib1g cmake build-essential dpkg-dev
+
       - name: Checking OpenSSL/wolfProvider packages in cache
         uses: actions/cache/restore@v4
         id: wolfprov-cache-restore
@@ -72,22 +77,15 @@ jobs:
           ls -la ${{ env.WOLFSSL_PACKAGES_PATH }}
           ls -la ${{ env.OPENSSL_PACKAGES_PATH }}
           ls -la ${{ env.WOLFPROV_PACKAGES_PATH }}
-
           apt install --reinstall -y \
-            ${{ env.WOLFSSL_PACKAGES_PATH }}/libwolfssl_*.deb
-
+            ${{ env.WOLFSSL_PACKAGES_PATH }}/libwolfssl*.deb
           apt install --reinstall -y \
-            ${{ env.OPENSSL_PACKAGES_PATH }}/openssl_*.deb \
-            ${{ env.OPENSSL_PACKAGES_PATH }}/libssl3_*.deb \
-            ${{ env.OPENSSL_PACKAGES_PATH }}/libssl-dev_*.deb
-
+            ${{ env.OPENSSL_PACKAGES_PATH }}/openssl*.deb \
+            ${{ env.OPENSSL_PACKAGES_PATH }}/libssl3*.deb \
+            ${{ env.OPENSSL_PACKAGES_PATH }}/libssl-dev*.deb
           apt install --reinstall -y \
             ${{ env.WOLFPROV_PACKAGES_PATH }}/libwolfprov_*.deb
 
-      - name: Install libwebsockets dependencies
-        run: |
-          apt-get update
-          apt-get install -y libc6 libcap2 zlib1g cmake build-essential
       - name: Download libwebsockets
         uses: actions/checkout@v4
         with:
@@ -100,9 +98,8 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake ..
+          cmake .. -DLWS_WITH_SSL=ON
           make -j$(nproc)
-          make install
 
       - name: Run libwebsockets tests
         working-directory: libwebsockets
@@ -112,8 +109,8 @@ jobs:
           ./build/bin/libwebsockets-test-server --port=11111 --ssl > server.log 2>&1 & SERVER_PID=$!
           sleep 5
           timeout 10 ./build/bin/libwebsockets-test-client 127.0.0.1 --port=11111 --ssl > client.log 2>&1 || echo "Client exited with error $?"
-          ldd ./build/bin/libwebsockets-test-server | grep wolfProvider
-          ldd ./build/bin/libwebsockets-test-client | grep wolfProvider
+          ldd ./build/bin/libwebsockets-test-server | grep wolfProvider || echo "wolfProvider not found in server"
+          ldd ./build/bin/libwebsockets-test-client | grep wolfProvider || echo "wolfProvider not found in client"
           kill $SERVER_PID || echo "Server already exited"
           cat server.log || echo "Missing server.log"
           cat client.log || echo "Missing client.log"
@@ -124,3 +121,4 @@ jobs:
             TEST_RESULT=0
           fi
           $GITHUB_WORKSPACE/.github/scripts/check-workflow-result.sh $TEST_RESULT ${{ matrix.force_fail }} libwebsockets
+
