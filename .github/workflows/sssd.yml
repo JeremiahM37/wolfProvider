@@ -66,7 +66,7 @@ jobs:
         shell: bash
         run: |
           # Set up environment for wolfProvider
-          . $GITHUB_WORKSPACE/scripts/env-setup
+          source $GITHUB_WORKSPACE/scripts/env-setup
 
           # Configure OpenSSL to load wolfProvider as default
           export OPENSSL_CONF_INCLUDE=$GITHUB_WORKSPACE/openssl-install/ssl
@@ -99,7 +99,7 @@ jobs:
         shell: bash
         run: |
           # Set up environment for wolfProvider
-          . $GITHUB_WORKSPACE/scripts/env-setup
+          source $GITHUB_WORKSPACE/scripts/env-setup
 
           # Clone SSSD
           git clone https://github.com/SSSD/sssd.git
@@ -118,7 +118,7 @@ jobs:
         shell: bash
         run: |
           # Set up environment for wolfProvider
-          . $GITHUB_WORKSPACE/scripts/env-setup
+          source $GITHUB_WORKSPACE/scripts/env-setup
           export ${{ matrix.force_fail }}
 
           echo "Checking OpenSSL providers:"
