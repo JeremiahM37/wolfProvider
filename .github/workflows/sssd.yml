@@ -128,10 +128,33 @@ jobs:
           git checkout ${{ matrix.sssd_ref }}
           # Apply patch for testing
           patch -p1 < $GITHUB_WORKSPACE/osp/wolfProvider/sssd/sssd-${{ matrix.sssd_ref }}-wolfprov.patch
-          # Configure and build SSSD with wolfProvider
-          autoreconf -ivf
-          ./configure --without-samba --disable-cifs-idmap-plugin \
-          --without-nfsv4-idmapd-plugin --with-oidc-child=no
+              # Configure and build SSSD with wolfProvider
+              autoreconf -ivf
+              ./configure --without-samba --disable-cifs-idmap-plugin \
+              --without-nfsv4-idmapd-plugin --with-oidc-child=no
+
+              # Pre-emptively patch the ECC CA Makefile to use default provider for certificate generation
+              echo "=== Patching ECC CA Makefile to work around wolfProvider ECC issue ==="
+              if [ -f src/tests/test_ECC_CA/Makefile ]; then
+                # Create a wrapper script for OpenSSL that disables wolfProvider for ECC operations
+                cat > src/tests/test_ECC_CA/openssl_ecc_wrapper.sh << 'EOF'
+#!/bin/bash
+# Wrapper script to use default provider for ECC certificate generation
+if [[ "$*" == *"SSSD_test_ECC_CA"* ]] && [[ "$*" == *"-x509"* ]]; then
+  echo "Using default provider for ECC CA certificate generation..."
+  OPENSSL_CONF="" OPENSSL_MODULES="" /usr/bin/openssl "$@"
+else
+  # Use normal OpenSSL for other operations
+  /usr/bin/openssl "$@"
+fi
+EOF
+                chmod +x src/tests/test_ECC_CA/openssl_ecc_wrapper.sh
+
+                # Replace openssl calls in the Makefile with our wrapper
+                ECC_CA_DIR=$(pwd)/src/tests/test_ECC_CA
+                sed -i "s|/usr/bin/openssl|${ECC_CA_DIR}/openssl_ecc_wrapper.sh|g" src/tests/test_ECC_CA/Makefile
+                echo "ECC CA Makefile patched successfully"
+              fi
 
           # Fix the OpenSSL binary path issue - use the custom-built OpenSSL that matches the libraries
           echo "=== Fixing OpenSSL binary path ==="
@@ -284,6 +307,7 @@ jobs:
           make check 2>&1 | tee sssd-test.log
           TEST_RESULT=${PIPESTATUS[0]}
           $GITHUB_WORKSPACE/.github/scripts/check-workflow-result.sh $TEST_RESULT ${{ matrix.force_fail }} sssd
+
 
 
 
