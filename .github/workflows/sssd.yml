@@ -137,20 +137,18 @@ jobs:
               echo "=== Patching ECC CA Makefile to work around wolfProvider ECC issue ==="
               if [ -f src/tests/test_ECC_CA/Makefile ]; then
                 # Create a wrapper script for OpenSSL that disables wolfProvider for ECC operations
-                cat > src/tests/test_ECC_CA/openssl_ecc_wrapper.sh << 'WRAPPER_EOF'
-#!/bin/bash
-# Wrapper script to use default provider for ECC certificate generation
-case "$*" in
-  *"SSSD_test_ECC_CA"*"-x509"*)
-    echo "Using default provider for ECC CA certificate generation..."
-    OPENSSL_CONF="" OPENSSL_MODULES="" /usr/bin/openssl "$@"
-    ;;
-  *)
-    # Use normal OpenSSL for other operations
-    /usr/bin/openssl "$@"
-    ;;
-esac
-WRAPPER_EOF
+                echo '#!/bin/bash' > src/tests/test_ECC_CA/openssl_ecc_wrapper.sh
+                echo '# Wrapper script to use default provider for ECC certificate generation' >> src/tests/test_ECC_CA/openssl_ecc_wrapper.sh
+                echo 'case "$*" in' >> src/tests/test_ECC_CA/openssl_ecc_wrapper.sh
+                echo '  *"SSSD_test_ECC_CA"*"-x509"*)' >> src/tests/test_ECC_CA/openssl_ecc_wrapper.sh
+                echo '    echo "Using default provider for ECC CA certificate generation..."' >> src/tests/test_ECC_CA/openssl_ecc_wrapper.sh
+                echo '    OPENSSL_CONF="" OPENSSL_MODULES="" /usr/bin/openssl "$@"' >> src/tests/test_ECC_CA/openssl_ecc_wrapper.sh
+                echo '    ;;' >> src/tests/test_ECC_CA/openssl_ecc_wrapper.sh
+                echo '  *)' >> src/tests/test_ECC_CA/openssl_ecc_wrapper.sh
+                echo '    # Use normal OpenSSL for other operations' >> src/tests/test_ECC_CA/openssl_ecc_wrapper.sh
+                echo '    /usr/bin/openssl "$@"' >> src/tests/test_ECC_CA/openssl_ecc_wrapper.sh
+                echo '    ;;' >> src/tests/test_ECC_CA/openssl_ecc_wrapper.sh
+                echo 'esac' >> src/tests/test_ECC_CA/openssl_ecc_wrapper.sh
                 chmod +x src/tests/test_ECC_CA/openssl_ecc_wrapper.sh
                 
                 # Replace openssl calls in the Makefile with our wrapper  
