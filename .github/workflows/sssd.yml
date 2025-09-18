@@ -79,14 +79,6 @@ jobs:
           echo "Testing wolfProvider functionality:"
           openssl version
 
-      - name: Setup env
-        run: |
-          ln -s samba-4.0/ldb.h /usr/include/ldb.h
-          ln -s samba-4.0/ldb_errors.h /usr/include/ldb_errors.h
-          ln -s samba-4.0/ldb_handlers.h /usr/include/ldb_handlers.h
-          ln -s samba-4.0/ldb_module.h /usr/include/ldb_module.h
-          ln -s samba-4.0/ldb_version.h /usr/include/ldb_version.h
-
       - name: Checkout OSP
         uses: actions/checkout@v4
         with:
@@ -164,8 +156,6 @@ jobs:
                 openssl ecparam -list_curves 2>&1 | head -20
                 echo "Decoding the EC parameters from key:"
                 echo "BgUrgQQAIg==" | base64 -d | xxd
-                echo "This appears to be secp384r1 curve"
-                echo "*** This is the unsupported algorithm error ***"
               }
 
               echo "=== Full OpenSSL command that fails ==="
@@ -209,22 +199,4 @@ jobs:
           make check 2>&1 | tee sssd-test.log
           TEST_RESULT=${PIPESTATUS[0]}
           $GITHUB_WORKSPACE/.github/scripts/check-workflow-result.sh $TEST_RESULT ${{ matrix.force_fail }} sssd
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
