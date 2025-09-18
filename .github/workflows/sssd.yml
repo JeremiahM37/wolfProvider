@@ -128,10 +128,31 @@ jobs:
               cd src/tests/test_ECC_CA
               ls -la
               ls -la SSSD_test_ECC_CA_key.pem
+              echo "Original key:"
               cat SSSD_test_ECC_CA_key.pem
+              
+              echo "Trying key format conversion to fix wolfProvider compatibility..."
+              cp SSSD_test_ECC_CA_key.pem SSSD_test_ECC_CA_key_original.pem
+              
+              # Try converting to traditional format
+              openssl ec -in SSSD_test_ECC_CA_key_original.pem -out SSSD_test_ECC_CA_key.pem -traditional 2>&1 && {
+                echo "Converted to traditional format"
+                cat SSSD_test_ECC_CA_key.pem
+              } || {
+                echo "Traditional format conversion failed, trying standard EC format"
+                openssl ec -in SSSD_test_ECC_CA_key_original.pem -out SSSD_test_ECC_CA_key.pem 2>&1 && {
+                  echo "Converted to standard EC format"
+                  cat SSSD_test_ECC_CA_key.pem
+                } || {
+                  echo "All format conversions failed, using original key"
+                  cp SSSD_test_ECC_CA_key_original.pem SSSD_test_ECC_CA_key.pem
+                }
+              }
+              
+              echo "Testing converted key with wolfProvider:"
               openssl pkey -in SSSD_test_ECC_CA_key.pem -text -noout 2>&1 || {
-                echo "*** KEY READING FAILED WITH WOLFPROVIDER ***"
-                echo "*** This is the unsupported ECC algorithm/format error ***"
+                echo "*** KEY READING STILL FAILED WITH WOLFPROVIDER AFTER CONVERSION ***"
+                echo "*** This confirms it's a wolfProvider ECC parsing issue ***"
                 }
               set +e
               openssl req -batch -config ./SSSD_test_ECC_CA.config -x509 -new -nodes -key SSSD_test_ECC_CA_key.pem -sha384 -days 1024 -set_serial 0 -extensions v3_ca -out SSSD_test_ECC_CA.pem -verbose 2>&1
