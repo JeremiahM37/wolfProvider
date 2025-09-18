@@ -68,6 +68,9 @@ jobs:
         shell: bash
         run: |
           source $GITHUB_WORKSPACE/scripts/env-setup
+          # CRITICAL FIX: Ensure custom OpenSSL binary and libraries are used
+          export PATH="$GITHUB_WORKSPACE/openssl-install/bin:$PATH"
+          export LD_LIBRARY_PATH="$GITHUB_WORKSPACE/openssl-install/lib64:$GITHUB_WORKSPACE/wolfssl-install/lib:$LD_LIBRARY_PATH"
           echo "Checking if wolfProvider is loaded:"
           openssl list -providers
           echo "Testing wolfProvider functionality:"
@@ -88,30 +91,14 @@ jobs:
           path: osp
           fetch-depth: 1
 
-      - name: Debug OpenSSL environment
-        shell: bash
-        run: |
-          source $GITHUB_WORKSPACE/scripts/env-setup
-          echo "=== OpenSSL Environment Debug ==="
-          echo "OPENSSL_CONF: $OPENSSL_CONF"
-          echo "OPENSSL_MODULES: $OPENSSL_MODULES"
-          echo "LD_LIBRARY_PATH: $LD_LIBRARY_PATH"
-          echo "PATH: $PATH"
-
-          echo "=== OpenSSL Binary Info ==="
-          which openssl
-          openssl version -a
-
-          echo "=== OpenSSL Provider Test ==="
-          openssl list -providers || echo "Provider list failed"
-
-          echo "=== Library Dependencies ==="
-          ldd $(which openssl) || echo "ldd failed"
 
       - name: Build and test sssd with wolfProvider
         shell: bash
         run: |
           source $GITHUB_WORKSPACE/scripts/env-setup
+          # CRITICAL FIX: Ensure custom OpenSSL binary and libraries are used
+          export PATH="$GITHUB_WORKSPACE/openssl-install/bin:$PATH"
+          export LD_LIBRARY_PATH="$GITHUB_WORKSPACE/openssl-install/lib64:$GITHUB_WORKSPACE/wolfssl-install/lib:$LD_LIBRARY_PATH"
 
           git clone https://github.com/SSSD/sssd.git
           cd sssd
@@ -121,31 +108,16 @@ jobs:
           ./configure --without-samba --disable-cifs-idmap-plugin \
           --without-nfsv4-idmapd-plugin --with-oidc-child=no
 
-          export PATH="$GITHUB_WORKSPACE/openssl-install/bin:$PATH"
-
-          make -j V=1 2>&1 | tee build.log || {
-            if [ -d src/tests/test_ECC_CA ]; then
-              cd src/tests/test_ECC_CA
-              ls -la
-              ls -la SSSD_test_ECC_CA_key.pem
-              cat SSSD_test_ECC_CA_key.pem
-              openssl pkey -in SSSD_test_ECC_CA_key.pem -text -noout 2>&1 || {
-                echo "*** KEY READING FAILED WITH WOLFPROVIDER ***"
-                echo "*** This is the unsupported ECC algorithm/format error ***"
-                }
-              set +e
-              openssl req -batch -config ./SSSD_test_ECC_CA.config -x509 -new -nodes -key SSSD_test_ECC_CA_key.pem -sha384 -days 1024 -set_serial 0 -extensions v3_ca -out SSSD_test_ECC_CA.pem -verbose 2>&1
-              echo "OpenSSL exit code: $?"
-              set -e
-            fi
-            exit 1
-          }
+          make -j
 
       - name: Run tests
         working-directory: sssd
         shell: bash
         run: |
           source $GITHUB_WORKSPACE/scripts/env-setup
+          # CRITICAL FIX: Ensure custom OpenSSL binary and libraries are used
+          export PATH="$GITHUB_WORKSPACE/openssl-install/bin:$PATH"
+          export LD_LIBRARY_PATH="$GITHUB_WORKSPACE/openssl-install/lib64:$GITHUB_WORKSPACE/wolfssl-install/lib:$LD_LIBRARY_PATH"
           export ${{ matrix.force_fail }}
 
           openssl list -providers | tee provider-list.log
