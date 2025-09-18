@@ -73,6 +73,14 @@ jobs:
           echo "Testing wolfProvider functionality:"
           openssl version
 
+      - name: Setup env
+        run: |
+          ln -s samba-4.0/ldb.h /usr/include/ldb.h
+          ln -s samba-4.0/ldb_errors.h /usr/include/ldb_errors.h
+          ln -s samba-4.0/ldb_handlers.h /usr/include/ldb_handlers.h
+          ln -s samba-4.0/ldb_module.h /usr/include/ldb_module.h
+          ln -s samba-4.0/ldb_version.h /usr/include/ldb_version.h
+
       - name: Checkout OSP
         uses: actions/checkout@v4
         with:
