@@ -34,7 +34,6 @@ jobs:
     steps:
       - name: Install dependencies
         run: |
-          # Don't prompt for anything
           apt-get update
           apt-get install -y build-essential autoconf libldb-dev \
           libldb2 python3-ldb bc libcap-dev libutf8proc-dev git
@@ -68,14 +67,9 @@ jobs:
       - name: Setup wolfProvider environment
         shell: bash
         run: |
-          # Set up environment for wolfProvider
           source $GITHUB_WORKSPACE/scripts/env-setup
-
-          # Verify wolfProvider is available
           echo "Checking if wolfProvider is loaded:"
           openssl list -providers
-
-          # Test that wolfProvider works
           echo "Testing wolfProvider functionality:"
           openssl version
 
@@ -89,9 +83,7 @@ jobs:
       - name: Debug OpenSSL environment
         shell: bash
         run: |
-          # Set up environment for wolfProvider
           source $GITHUB_WORKSPACE/scripts/env-setup
-
           echo "=== OpenSSL Environment Debug ==="
           echo "OPENSSL_CONF: $OPENSSL_CONF"
           echo "OPENSSL_MODULES: $OPENSSL_MODULES"
@@ -111,59 +103,32 @@ jobs:
       - name: Build and test sssd with wolfProvider
         shell: bash
         run: |
-          # Set up environment for wolfProvider
           source $GITHUB_WORKSPACE/scripts/env-setup
 
-          # Clone SSSD
           git clone https://github.com/SSSD/sssd.git
           cd sssd
           git checkout ${{ matrix.sssd_ref }}
-          # Apply patch for testing
           patch -p1 < $GITHUB_WORKSPACE/osp/wolfProvider/sssd/sssd-${{ matrix.sssd_ref }}-wolfprov.patch
-              # Configure and build SSSD with wolfProvider
-              autoreconf -ivf
-              ./configure --without-samba --disable-cifs-idmap-plugin \
-              --without-nfsv4-idmapd-plugin --with-oidc-child=no
+          autoreconf -ivf
+          ./configure --without-samba --disable-cifs-idmap-plugin \
+          --without-nfsv4-idmapd-plugin --with-oidc-child=no
 
-
-          # Fix the OpenSSL binary path issue - use the custom-built OpenSSL that matches the libraries
-          echo "=== Fixing OpenSSL binary path ==="
           export PATH="$GITHUB_WORKSPACE/openssl-install/bin:$PATH"
-          echo "Updated PATH: $PATH"
-          echo "OpenSSL binary now: $(which openssl)"
-          echo "OpenSSL version check: $(openssl version)"
 
-          # Build SSSD - let it fail naturally to see the wolfProvider ECC error
-          echo "=== Building SSSD with wolfProvider (will fail on ECC) ==="
           make -j V=1 2>&1 | tee build.log || {
-            echo "=== Build failed, analyzing ECC error ==="
             if [ -d src/tests/test_ECC_CA ]; then
               cd src/tests/test_ECC_CA
-              echo "=== ECC CA directory contents ==="
               ls -la
-              echo "=== ECC key file analysis ==="
-              echo "Key file exists and is readable:"
               ls -la SSSD_test_ECC_CA_key.pem
-              file SSSD_test_ECC_CA_key.pem
-              echo "Key file contents:"
               cat SSSD_test_ECC_CA_key.pem
-
-              echo "=== wolfProvider ECC compatibility test ==="
-              echo "Testing key file reading with wolfProvider:"
               openssl pkey -in SSSD_test_ECC_CA_key.pem -text -noout 2>&1 || {
                 echo "*** KEY READING FAILED WITH WOLFPROVIDER ***"
-                echo "Testing what curves wolfProvider supports:"
-                openssl ecparam -list_curves 2>&1 | head -20
-                echo "Decoding the EC parameters from key:"
-                echo "BgUrgQQAIg==" | base64 -d | xxd
-              }
-
-              echo "=== Full OpenSSL command that fails ==="
-              set +e  # Don't exit on error
+                echo "*** This is the unsupported ECC algorithm/format error ***"
+                }
+              set +e
               openssl req -batch -config ./SSSD_test_ECC_CA.config -x509 -new -nodes -key SSSD_test_ECC_CA_key.pem -sha384 -days 1024 -set_serial 0 -extensions v3_ca -out SSSD_test_ECC_CA.pem -verbose 2>&1
-              OPENSSL_EXIT_CODE=$?
-              set -e  # Re-enable exit on error
-              echo "OpenSSL exit code: $OPENSSL_EXIT_CODE"
+              echo "OpenSSL exit code: $?"
+              set -e
             fi
             exit 1
           }
@@ -172,30 +137,23 @@ jobs:
         working-directory: sssd
         shell: bash
         run: |
-          # Set up environment for wolfProvider
           source $GITHUB_WORKSPACE/scripts/env-setup
           export ${{ matrix.force_fail }}
 
-          echo "Checking OpenSSL providers:"
           openssl list -providers | tee provider-list.log
 
-          # Check if wolfProvider is loaded
           if grep -q "wolfSSL Provider\|libwolfprov" provider-list.log; then
             echo "SUCCESS: wolfProvider found in OpenSSL providers"
           else
             echo "ERROR: wolfProvider not found in OpenSSL providers"
-            echo "Available providers:"
             cat provider-list.log
-            echo "Environment variables:"
             env | grep -E "(OPENSSL|WOLFSSL|LD_LIBRARY)"
             exit 1
           fi
 
-          # If force fail is enabled dont exit with error
           if [ "${{ matrix.force_fail }}" == "WOLFPROV_FORCE_FAIL=1" ]; then
             set +e
           fi
-          # Run tests and save result
           make check 2>&1 | tee sssd-test.log
           TEST_RESULT=${PIPESTATUS[0]}
           $GITHUB_WORKSPACE/.github/scripts/check-workflow-result.sh $TEST_RESULT ${{ matrix.force_fail }} sssd
