@@ -76,13 +76,6 @@ jobs:
           echo "Testing wolfProvider functionality:"
           openssl version
 
-      - name: Setup env
-        run: |
-          ln -s samba-4.0/ldb.h /usr/include/ldb.h
-          ln -s samba-4.0/ldb_errors.h /usr/include/ldb_errors.h
-          ln -s samba-4.0/ldb_handlers.h /usr/include/ldb_handlers.h
-          ln -s samba-4.0/ldb_module.h /usr/include/ldb_module.h
-          ln -s samba-4.0/ldb_version.h /usr/include/ldb_version.h
 
       - name: Checkout OSP
         uses: actions/checkout@v4
@@ -99,6 +92,13 @@ jobs:
           # CRITICAL FIX: Ensure custom OpenSSL binary and libraries are used
           export PATH="$GITHUB_WORKSPACE/openssl-install/bin:$PATH"
           export LD_LIBRARY_PATH="$GITHUB_WORKSPACE/openssl-install/lib64:$GITHUB_WORKSPACE/wolfssl-install/lib:$LD_LIBRARY_PATH"
+
+          # CRITICAL FIX: Ensure LDB headers are available for SSSD configure
+          ln -sf samba-4.0/ldb.h /usr/include/ldb.h
+          ln -sf samba-4.0/ldb_errors.h /usr/include/ldb_errors.h
+          ln -sf samba-4.0/ldb_handlers.h /usr/include/ldb_handlers.h
+          ln -sf samba-4.0/ldb_module.h /usr/include/ldb_module.h
+          ln -sf samba-4.0/ldb_version.h /usr/include/ldb_version.h
 
           git clone https://github.com/SSSD/sssd.git
           cd sssd
