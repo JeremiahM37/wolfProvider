@@ -114,9 +114,19 @@ jobs:
           sed -i 's/default_md.*=.*/default_md = default/' src/tests/test_ECC_CA/SSSD_test_ECC_CA.config
           
           # Clean up any trailing whitespace our sed commands might have introduced
+          # First, check what we're dealing with
+          echo "=== WHITESPACE CLEANUP ==="
+          echo "Checking for trailing whitespace in files we modified:"
+          git grep -n '\s\+$' src/tests/test_CA/intermediate_CA/Makefile src/tests/test_ECC_CA/Makefile src/tests/test_ECC_CA/SSSD_test_ECC_CA.config || echo "No trailing whitespace found"
+          
+          # Clean up trailing whitespace
           sed -i 's/[ \t]*$//' src/tests/test_CA/intermediate_CA/Makefile
           sed -i 's/[ \t]*$//' src/tests/test_ECC_CA/Makefile  
           sed -i 's/[ \t]*$//' src/tests/test_ECC_CA/SSSD_test_ECC_CA.config
+          
+          # Verify cleanup worked
+          echo "After cleanup:"
+          git grep -n '\s\+$' src/tests/test_CA/intermediate_CA/Makefile src/tests/test_ECC_CA/Makefile src/tests/test_ECC_CA/SSSD_test_ECC_CA.config || echo "Trailing whitespace cleaned up successfully"
           
           # Debug: Show what the config looks like after our fixes
           echo "=== DEBUG: CA config after fixes ==="
@@ -176,11 +186,23 @@ jobs:
             # Check if it's just a whitespace test failure
             echo "=== CHECKING FOR WHITESPACE TEST FAILURE ==="
             if grep -q "whitespace_test.*FAIL" test-suite.log; then
-              echo "Whitespace test failed - checking our modifications:"
+              echo "Whitespace test failed - running the test manually to see details:"
+              cd src/tests && ./whitespace_test 2>&1 || echo "Whitespace test manual run failed"
+              cd ../..
+              
+              echo "Checking what files the whitespace test examines:"
+              cat src/tests/whitespace_test | head -20 || echo "Could not read whitespace_test script"
+              
               echo "Files we modified:"
               ls -la src/tests/test_CA/intermediate_CA/Makefile src/tests/test_ECC_CA/Makefile src/tests/test_ECC_CA/SSSD_test_ECC_CA.config 2>/dev/null || echo "Some files not found"
+              
               echo "Checking for whitespace issues in our changes..."
-              grep -n "[ \t]$" src/tests/test_CA/intermediate_CA/Makefile src/tests/test_ECC_CA/Makefile src/tests/test_ECC_CA/SSSD_test_ECC_CA.config 2>/dev/null || echo "No trailing whitespace found"
+              echo "=== Intermediate CA Makefile ==="
+              grep -n "[ \t]$" src/tests/test_CA/intermediate_CA/Makefile || echo "No trailing whitespace"
+              echo "=== ECC CA Makefile ==="  
+              grep -n "[ \t]$" src/tests/test_ECC_CA/Makefile || echo "No trailing whitespace"
+              echo "=== ECC CA Config ==="
+              grep -n "[ \t]$" src/tests/test_ECC_CA/SSSD_test_ECC_CA.config || echo "No trailing whitespace"
             fi
           fi
           
