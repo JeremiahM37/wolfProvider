@@ -148,5 +148,17 @@ jobs:
           fi
           make check 2>&1 | tee sssd-test.log
           TEST_RESULT=${PIPESTATUS[0]}
+          
+          # Debug test failures
+          if [ $TEST_RESULT -ne 0 ]; then
+            echo "=== TESTS FAILED - DEBUGGING ==="
+            echo "=== TEST SUITE SUMMARY ==="
+            tail -20 test-suite.log 2>/dev/null || echo "Could not read test-suite.log"
+            echo "=== FAILED TEST DETAILS ==="
+            grep -A 10 -B 5 "FAIL\|ERROR" test-suite.log 2>/dev/null || echo "No detailed failure info found"
+            echo "=== CHECKING FOR WOLFPROVIDER-RELATED FAILURES ==="
+            grep -i -A 5 -B 5 "wolf\|provider\|ssl\|crypto" test-suite.log 2>/dev/null || echo "No wolfProvider-related failures found"
+          fi
+          
           $GITHUB_WORKSPACE/.github/scripts/check-workflow-result.sh $TEST_RESULT ${{ matrix.force_fail }} sssd
 
