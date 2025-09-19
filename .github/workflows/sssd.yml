@@ -188,6 +188,15 @@ jobs:
               cat src/tests/cmocka/sss_certmap_test.log
             fi
             
+            echo "=== RUNNING CERTMAP TEST WITH VERBOSE OUTPUT ==="
+            cd src/tests/cmocka
+            echo "Current OpenSSL providers:"
+            openssl list -providers
+            echo "Testing certificate parsing manually:"
+            # Run the test with maximum verbosity to see exactly what fails
+            ./sss_certmap_test -v 2>&1 | head -100 || echo "Certmap test failed"
+            cd ../../..
+            
             # Check if it's just a whitespace test failure
             echo "=== CHECKING FOR WHITESPACE TEST FAILURE ==="
             if grep -q "whitespace_test.*FAIL" test-suite.log; then
