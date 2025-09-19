@@ -103,15 +103,20 @@ jobs:
           --without-nfsv4-idmapd-plugin --with-oidc-child=no
           
           # Fix the intermediate CA Makefile after configure
+          sed -i 's/ -extensions v3_ca//g' src/tests/test_CA/intermediate_CA/Makefile
+          sed -i 's/-extensions v3_ca //g' src/tests/test_CA/intermediate_CA/Makefile
           sed -i 's/-extensions v3_ca//g' src/tests/test_CA/intermediate_CA/Makefile
 
           # FIX: wolfProvider has a bug with explicit hash algorithms for ECC operations
           # Remove -sha384 from ECC CA certificate generation and let OpenSSL choose default hash
           echo "=== APPLYING WOLFPROVIDER ECC HASH BUG FIX ==="
+          # Use more precise sed to avoid whitespace issues
+          sed -i 's/ -sha384//g' src/tests/test_ECC_CA/Makefile
+          sed -i 's/-sha384 //g' src/tests/test_ECC_CA/Makefile
           sed -i 's/-sha384//g' src/tests/test_ECC_CA/Makefile
           
           # Also fix the CA config file - remove explicit hash algorithm specification
-          sed -i 's/default_md.*=.*/default_md = default/' src/tests/test_ECC_CA/SSSD_test_ECC_CA.config
+          sed -i 's/default_md[[:space:]]*=[[:space:]].*/default_md = default/' src/tests/test_ECC_CA/SSSD_test_ECC_CA.config
           
           # Clean up any trailing whitespace our sed commands might have introduced
           # First, check what we're dealing with
@@ -187,8 +192,11 @@ jobs:
             echo "=== CHECKING FOR WHITESPACE TEST FAILURE ==="
             if grep -q "whitespace_test.*FAIL" test-suite.log; then
               echo "Whitespace test failed - running the test manually to see details:"
-              cd src/tests && ./whitespace_test 2>&1 || echo "Whitespace test manual run failed"
+              cd src/tests && ./whitespace_test 2>&1 | head -50 || echo "Whitespace test manual run failed"
               cd ../..
+              
+              echo "=== RUNNING GIT GREP DIRECTLY ==="
+              git grep -n '\s\+$' | grep -E "(test_CA|test_ECC_CA)" | head -20 || echo "No trailing whitespace in our files"
               
               echo "Checking what files the whitespace test examines:"
               cat src/tests/whitespace_test | head -20 || echo "Could not read whitespace_test script"
