@@ -105,11 +105,23 @@ jobs:
           # Fix the intermediate CA Makefile after configure
           sed -i 's/-extensions v3_ca//g' src/tests/test_CA/intermediate_CA/Makefile
 
-          # FIX: wolfProvider has a bug with explicit hash algorithms (-sha384) for ECC certificate generation
+          # FIX: wolfProvider has a bug with explicit hash algorithms for ECC operations
           # Remove -sha384 from ECC CA certificate generation and let OpenSSL choose default hash
           echo "=== APPLYING WOLFPROVIDER ECC HASH BUG FIX ==="
           sed -i 's/-sha384//g' src/tests/test_ECC_CA/Makefile
+          
+          # Also fix the CA config file - remove explicit hash algorithm specification
+          sed -i 's/default_md.*=.*/default_md = default/' src/tests/test_ECC_CA/SSSD_test_ECC_CA.config
+          
+          # Debug: Show what the config looks like after our fixes
+          echo "=== DEBUG: CA config after fixes ==="
+          grep -A 2 -B 2 "default_md" src/tests/test_ECC_CA/SSSD_test_ECC_CA.config || echo "No default_md found"
           echo "=== ECC HASH FIX APPLIED ==="
+
+          # Debug: Show the exact CRL generation command that will be used
+          echo "=== DEBUG: CRL generation command ==="
+          grep -A 1 "SSSD_test_ECC_crl.pem:" src/tests/test_ECC_CA/Makefile || echo "CRL target not found"
+          echo "=== DEBUG END ==="
 
           make -j
 
