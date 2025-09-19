@@ -113,6 +113,11 @@ jobs:
           # Also fix the CA config file - remove explicit hash algorithm specification
           sed -i 's/default_md.*=.*/default_md = default/' src/tests/test_ECC_CA/SSSD_test_ECC_CA.config
           
+          # Clean up any trailing whitespace our sed commands might have introduced
+          sed -i 's/[ \t]*$//' src/tests/test_CA/intermediate_CA/Makefile
+          sed -i 's/[ \t]*$//' src/tests/test_ECC_CA/Makefile  
+          sed -i 's/[ \t]*$//' src/tests/test_ECC_CA/SSSD_test_ECC_CA.config
+          
           # Debug: Show what the config looks like after our fixes
           echo "=== DEBUG: CA config after fixes ==="
           grep -A 2 -B 2 "default_md" src/tests/test_ECC_CA/SSSD_test_ECC_CA.config || echo "No default_md found"
@@ -168,10 +173,15 @@ jobs:
               cat src/tests/cmocka/sss_certmap_test.log
             fi
             
-            # Run the failing test manually with verbose output
-            echo "=== RUNNING CERTMAP TEST MANUALLY ==="
-            cd src/tests/cmocka && ./sss_certmap_test -v 2>&1 || echo "Manual test run failed"
-            cd ../../..
+            # Check if it's just a whitespace test failure
+            echo "=== CHECKING FOR WHITESPACE TEST FAILURE ==="
+            if grep -q "whitespace_test.*FAIL" test-suite.log; then
+              echo "Whitespace test failed - checking our modifications:"
+              echo "Files we modified:"
+              ls -la src/tests/test_CA/intermediate_CA/Makefile src/tests/test_ECC_CA/Makefile src/tests/test_ECC_CA/SSSD_test_ECC_CA.config 2>/dev/null || echo "Some files not found"
+              echo "Checking for whitespace issues in our changes..."
+              grep -n "[ \t]$" src/tests/test_CA/intermediate_CA/Makefile src/tests/test_ECC_CA/Makefile src/tests/test_ECC_CA/SSSD_test_ECC_CA.config 2>/dev/null || echo "No trailing whitespace found"
+            fi
           fi
           
           $GITHUB_WORKSPACE/.github/scripts/check-workflow-result.sh $TEST_RESULT ${{ matrix.force_fail }} sssd
