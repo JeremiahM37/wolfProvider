@@ -110,6 +110,38 @@ jobs:
           # Fix the intermediate CA Makefile after configure
           sed -i 's/-extensions v3_ca//g' src/tests/test_CA/intermediate_CA/Makefile
 
+          # Debug: Check wolfProvider is working before SSSD build
+          echo "=== Debugging wolfProvider before SSSD build ==="
+          echo "OpenSSL version and providers:"
+          $GITHUB_WORKSPACE/openssl-install/bin/openssl version
+          $GITHUB_WORKSPACE/openssl-install/bin/openssl list -providers
+          
+          echo "Environment variables:"
+          echo "LD_LIBRARY_PATH: $LD_LIBRARY_PATH"
+          echo "OPENSSL_CONF: $OPENSSL_CONF"
+          echo "OPENSSL_MODULES: $OPENSSL_MODULES"
+          
+          echo "Testing ECC key generation with wolfProvider:"
+          cd src/tests/test_ECC_CA
+          echo "Current directory: $(pwd)"
+          echo "Contents: $(ls -la)"
+          
+          # Test if wolfProvider can handle the existing ECC key
+          echo "Testing existing ECC key with wolfProvider:"
+          $GITHUB_WORKSPACE/openssl-install/bin/openssl ec -in SSSD_test_ECC_CA_key.pem -text -noout || echo "Failed to parse existing ECC key"
+          
+          # Test generating a new ECC key
+          echo "Testing ECC key generation:"
+          $GITHUB_WORKSPACE/openssl-install/bin/openssl ecparam -genkey -name secp384r1 -out test_new_ecc.pem
+          $GITHUB_WORKSPACE/openssl-install/bin/openssl ec -in test_new_ecc.pem -text -noout || echo "Failed to parse new ECC key"
+          
+          # Test the actual failing command
+          echo "Testing the failing certificate generation command:"
+          $GITHUB_WORKSPACE/openssl-install/bin/openssl req -batch -config ./SSSD_test_ECC_CA.config -x509 -new -nodes -key SSSD_test_ECC_CA_key.pem -sha384 -days 1024 -set_serial 0 -extensions v3_ca -out test_cert.pem -verbose || echo "Certificate generation failed"
+          
+          cd ../../..
+          echo "=== End debugging ==="
+
           make -j
 
       - name: Run tests
