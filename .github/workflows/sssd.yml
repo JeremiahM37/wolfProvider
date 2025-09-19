@@ -118,10 +118,14 @@ jobs:
           grep -A 2 -B 2 "default_md" src/tests/test_ECC_CA/SSSD_test_ECC_CA.config || echo "No default_md found"
           echo "=== ECC HASH FIX APPLIED ==="
 
-          # Debug: Show the exact CRL generation command that will be used
-          echo "=== DEBUG: CRL generation command ==="
-          grep -A 1 "SSSD_test_ECC_crl.pem:" src/tests/test_ECC_CA/Makefile || echo "CRL target not found"
-          echo "=== DEBUG END ==="
+          # DEBUG: Check if sss_certmap_test exists and what it does
+          echo "=== DEBUGGING CERTMAP TEST ==="
+          if [ -f sss_certmap_test ]; then
+            echo "sss_certmap_test binary found"
+            ldd sss_certmap_test | head -10 || echo "ldd failed"
+          else
+            echo "sss_certmap_test binary not found yet"
+          fi
 
           make -j
 
@@ -156,8 +160,18 @@ jobs:
             tail -20 test-suite.log 2>/dev/null || echo "Could not read test-suite.log"
             echo "=== FAILED TEST DETAILS ==="
             grep -A 10 -B 5 "FAIL\|ERROR" test-suite.log 2>/dev/null || echo "No detailed failure info found"
-            echo "=== CHECKING FOR WOLFPROVIDER-RELATED FAILURES ==="
-            grep -i -A 5 -B 5 "wolf\|provider\|ssl\|crypto" test-suite.log 2>/dev/null || echo "No wolfProvider-related failures found"
+            
+            # Specific debugging for sss_certmap_test
+            echo "=== CERTMAP TEST SPECIFIC DEBUGGING ==="
+            if [ -f src/tests/cmocka/sss_certmap_test.log ]; then
+              echo "Found sss_certmap_test.log:"
+              cat src/tests/cmocka/sss_certmap_test.log
+            fi
+            
+            # Run the failing test manually with verbose output
+            echo "=== RUNNING CERTMAP TEST MANUALLY ==="
+            cd src/tests/cmocka && ./sss_certmap_test -v 2>&1 || echo "Manual test run failed"
+            cd ../../..
           fi
           
           $GITHUB_WORKSPACE/.github/scripts/check-workflow-result.sh $TEST_RESULT ${{ matrix.force_fail }} sssd
