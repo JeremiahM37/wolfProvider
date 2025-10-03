@@ -21,8 +21,8 @@ jobs:
       replace_default: ${{ matrix.replace_default }}
     strategy:
       matrix:
-        wolfssl_ref: [ 'master', 'v5.8.0-stable' ]
-        openssl_ref: [ 'openssl-3.5.0' ]
+        wolfssl_ref: [ 'master', 'v5.8.2-stable' ]
+        openssl_ref: [ 'openssl-3.5.2' ]
         replace_default: [ true ]
 
   test_hostap:
@@ -38,8 +38,8 @@ jobs:
     strategy:
       matrix:
         hostap_ref: [ 'main' ]
-        wolfssl_ref: [ 'master', 'v5.8.0-stable' ]
-        openssl_ref: [ 'openssl-3.5.0' ]
+        wolfssl_ref: [ 'master', 'v5.8.2-stable' ]
+        openssl_ref: [ 'openssl-3.5.2' ]
         force_fail: [ 'WOLFPROV_FORCE_FAIL=1', '', 'OPENSSL' ]
         replace_default: [ true ]
     env:
