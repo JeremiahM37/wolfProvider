@@ -107,7 +107,7 @@ jobs:
           pip install --no-cache-dir --force-reinstall --break-system-packages cryptography
 
       - name: Checkout hostap
-        run: git clone git://w1.fi/hostap.git hostap
+        run: test -d hostap || git clone https://w1.fi/hostap.git
 
       - name: Checkout linux
         uses: actions/checkout@v4
