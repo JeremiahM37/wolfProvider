@@ -246,7 +246,7 @@ jobs:
           fi
 
           # Check for connection failures (common with WOLFPROV_FORCE_FAIL)
-          WPA_CONNECT_FAILS=$(grep -h "Could not connect to /tmp/wpas" /tmp/hwsim-test-logs/*/parallel.log 2>/dev/null | wc -l || echo "0")
+          WPA_CONNECT_FAILS=$(grep -h "Could not connect to /tmp/wpas" /tmp/hwsim-test-logs/*-parallel.log 2>/dev/null | wc -l || echo "0")
           
           # Ignore NOT-FOUND errors (test files missing/require special params)
           NOT_FOUND=$(grep -h "NOT-FOUND" /tmp/hwsim-test-logs/*-parallel.log 2>/dev/null | wc -l || echo "0")
