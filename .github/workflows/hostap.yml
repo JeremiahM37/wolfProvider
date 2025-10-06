@@ -3,7 +3,7 @@ name: hostap and wpa supplicant Tests
 # START OF COMMON SECTION
 on:
   push:
-    branches:  [ '*' ] #[ 'master', 'main', 'release/**' ]
+    branches: [ '*' ] # [ 'master', 'main', 'release/**' ]
   pull_request:
     branches: [ '*' ]
 
@@ -28,9 +28,10 @@ jobs:
   test_hostap:
     runs-on: ubuntu-22.04
     needs: build_wolfprovider
-    # Run inside Debian Bookworm to match packaging environment
+    # Run inside Debian Bookworm with privileged access for UML
     container:
       image: debian:bookworm
+      options: --privileged --cap-add=ALL -v /dev:/dev
       env:
         DEBIAN_FRONTEND: noninteractive
     # This should be a safe limit for the tests to run.
@@ -38,8 +39,8 @@ jobs:
     strategy:
       matrix:
         hostap_ref: [ 'main' ]
-        wolfssl_ref: [ 'master', 'v5.8.2-stable' ]
-        openssl_ref: [ 'openssl-3.5.2' ]
+        wolfssl_ref: [ 'master', 'v5.8.0-stable' ]
+        openssl_ref: [ 'openssl-3.5.0' ]
         force_fail: [ 'WOLFPROV_FORCE_FAIL=1', '', 'OPENSSL' ]
         replace_default: [ true ]
     env:
@@ -107,7 +108,7 @@ jobs:
           pip install --no-cache-dir --force-reinstall --break-system-packages cryptography
 
       - name: Checkout hostap
-        run: test -d hostap || git clone https://w1.fi/hostap.git
+        run: git clone git://w1.fi/hostap.git hostap
 
       - name: Checkout linux
         uses: actions/checkout@v4
@@ -147,10 +148,12 @@ jobs:
             # Set up wolfSSL environment variables
             # In UML mode, we can access the host filesystem directly
             echo "Setting up wolfSSL environment in UML mode"
-            # Use system-installed packages
+            # Use system-installed packages - find where wolfprov is actually installed
+            export OPENSSL_MODULES=\$(find /usr -name "libwolfprov.so" -exec dirname {} \; 2>/dev/null | head -1)
             export OPENSSL_CONF="/etc/ssl/openssl.cnf"
             export CRYPTOGRAPHY_OPENSSL_NO_LEGACY=1
             echo "wolfSSL environment variables set:"
+            echo "OPENSSL_MODULES: \$OPENSSL_MODULES"
             echo "OPENSSL_CONF: \$OPENSSL_CONF"
             # Test if wolfProvider is available
             echo "Testing OpenSSL providers:"
@@ -165,11 +168,13 @@ jobs:
             echo "setting env variables"
             # Set up wolfSSL environment variables
             echo "Setting up wolfSSL environment in UML mode"
-            # Use system-installed packages
+            # Use system-installed packages - find where wolfprov is actually installed
+            export OPENSSL_MODULES=\$(find /usr -name "libwolfprov.so" -exec dirname {} \; 2>/dev/null | head -1)
             export OPENSSL_CONF="/etc/ssl/openssl.cnf"
             export CRYPTOGRAPHY_OPENSSL_NO_LEGACY=1
             export WOLFPROV_FORCE_FAIL=1
             echo "wolfSSL environment variables set:"
+            echo "OPENSSL_MODULES: \$OPENSSL_MODULES"
             echo "OPENSSL_CONF: \$OPENSSL_CONF"
             echo "WOLFPROV_FORCE_FAIL: \$WOLFPROV_FORCE_FAIL"
             # Test if wolfProvider is available
@@ -201,6 +206,18 @@ jobs:
             KERNELDIR=$GITHUB_WORKSPACE/linux
             KVMARGS="-cpu host"
           EOF
+
+          # First, let's do a quick sanity check
+          echo "=== Sanity check: Testing VM startup ==="
+          timeout 30s ./vm/parallel-vm.py --nocurses 1 ap_open || echo "Initial test result: $?"
+
+          # Check if we got actual VM logs
+          if [ -d "/tmp/hwsim-test-logs" ]; then
+            echo "=== VM startup logs ==="
+            ls -la /tmp/hwsim-test-logs/
+            echo "=== First VM console log (if exists) ==="
+            cat /tmp/hwsim-test-logs/vm-*-0.log 2>/dev/null | head -50 || echo "No VM logs found"
+          fi
 
           SMOKE_TIMEOUT="3m"
           TLS_TIMEOUT="5m"
