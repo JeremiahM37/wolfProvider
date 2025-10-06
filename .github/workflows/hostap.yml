@@ -98,25 +98,35 @@ jobs:
         run: |
           apt-get update
           apt-get install -y libpcap0.8 libpcap-dev curl libcurl4-openssl-dev \
-            libnl-3-dev binutils-dev libiberty-dev libnl-genl-3-dev \
-            libnl-route-3-dev libdbus-1-dev bridge-utils tshark python3-pycryptodome \
-            libsqlite3-dev libzstd1 wireless-tools iw build-essential autoconf automake \
-            libtool pkg-config git wget ca-certificates flex bison bc libxml2-dev \
-            zlib1g-dev python3-pip psmisc iproute2 procps net-tools \
-            systemd kmod wireless-regdb
-          # Uninstall system cryptography and reinstall with custom OpenSSL
-          apt-get remove -y python3-cryptography || true
+            libnl-3-dev binutils-dev libiberty-dev libnl-genl-3-dev libnl-route-3-dev \
+            libdbus-1-dev bridge-utils tshark python3-pycryptodome libsqlite3-dev \
+            libzstd1 wireless-tools iw build-essential autoconf automake libtool \
+            pkg-config git wget ca-certificates flex bison bc libxml2-dev zlib1g-dev \
+            python3-pip psmisc iproute2 procps net-tools systemd kmod wireless-regdb
+          apt-get remove -y python3-cryptography 2>/dev/null || true
           pip install --no-cache-dir --force-reinstall --break-system-packages cryptography
 
       - name: Checkout hostap
         run: |
-          if [ ! -d hostap ]; then
-            git clone https://w1.fi/hostap.git
+          test -d hostap || git clone https://w1.fi/hostap.git
+          cd hostap/tests/hwsim/vm && git checkout inside.sh 2>/dev/null || true
+
+      - name: Checkout OSP
+        uses: actions/checkout@v4
+        with:
+          repository: wolfssl/osp
+          path: osp
+          fetch-depth: 1
+
+      - name: Apply hostap patches for wolfProvider
+        run: |
+          cd hostap
+          if [ -f "$GITHUB_WORKSPACE/osp/wolfProvider/hostap/hostap-${{ matrix.hostap_ref }}-wolfprov.patch" ]; then
+            echo "Applying OSP hostap patch..."
+            patch -p1 < "$GITHUB_WORKSPACE/osp/wolfProvider/hostap/hostap-${{ matrix.hostap_ref }}-wolfprov.patch"
+          else
+            echo "No OSP patch found for hostap-${{ matrix.hostap_ref }}"
           fi
-          # Ensure inside.sh is clean (in case it was modified in previous runs)
-          cd hostap/tests/hwsim/vm
-          git checkout inside.sh 2>/dev/null || true
-          cd $GITHUB_WORKSPACE
 
       - name: Checkout linux
         uses: actions/checkout@v4
@@ -135,13 +145,11 @@ jobs:
         working-directory: hostap/tests/hwsim
         run: |
           cat << EOF >> example-hostapd.config
-            # Use system-installed OpenSSL/wolfSSL packages
             CFLAGS += -I/usr/include/openssl
             LDFLAGS += -L/usr/lib/x86_64-linux-gnu
             LIBS += -lssl -lcrypto
           EOF
           cat << EOF >> example-wpa_supplicant.config
-            # Use system-installed OpenSSL/wolfSSL packages
             CFLAGS += -I/usr/include/openssl
             LDFLAGS += -L/usr/lib/x86_64-linux-gnu
             LIBS += -lssl -lcrypto
@@ -151,111 +159,53 @@ jobs:
         working-directory: hostap/tests/hwsim
         if: matrix.force_fail == ''
         run: |
-          # First, clean any previous modifications to inside.sh
-          cd vm
-          git checkout inside.sh 2>/dev/null || true
-          cd ..
-          
-          # Insert environment variables after line 115 (after the logshare mount)
+          cd vm && git checkout inside.sh 2>/dev/null || true && cd ..
           sed -i '115 r /dev/stdin' vm/inside.sh <<'ENVEOF'
-          echo "setting env variables"
-          
-          # Create stub halt command for UML (systemd halt doesn't work in UML/hostfs)
           cat > /tmp/bin/halt << 'HALTEOF'
           #!/bin/sh
-          # UML-compatible halt - just exit cleanly
           sync
           exit 0
           HALTEOF
           chmod +x /tmp/bin/halt
-          
-          # Set up wolfSSL environment variables
-          echo "Setting up wolfSSL environment in UML mode"
-          # Use system-installed packages - find where wolfprov is actually installed
           OPENSSL_MODULES_PATH=$(find /usr -name "libwolfprov.so" -exec dirname {} \; 2>/dev/null | head -1)
-          if [ -n "$OPENSSL_MODULES_PATH" ]; then
-            export OPENSSL_MODULES="$OPENSSL_MODULES_PATH"
-            echo "OPENSSL_MODULES: $OPENSSL_MODULES"
-          else
-            echo "WARNING: Could not find libwolfprov.so"
-          fi
+          [ -n "$OPENSSL_MODULES_PATH" ] && export OPENSSL_MODULES="$OPENSSL_MODULES_PATH"
           export OPENSSL_CONF="/etc/ssl/openssl.cnf"
           export CRYPTOGRAPHY_OPENSSL_NO_LEGACY=1
-          echo "OPENSSL_CONF: $OPENSSL_CONF"
-          # Test if wolfProvider is available
-          echo "Testing OpenSSL providers:"
-          openssl list -providers 2>&1 || echo "OpenSSL provider test failed"
           ENVEOF
 
       - name: Setup WPFF environment
         working-directory: hostap/tests/hwsim
         if: matrix.force_fail == 'WOLFPROV_FORCE_FAIL=1'
         run: |
-          # First, clean any previous modifications to inside.sh
-          cd vm
-          git checkout inside.sh 2>/dev/null || true
-          cd ..
-          
-          # Insert environment variables after line 115 (after the logshare mount)
+          cd vm && git checkout inside.sh 2>/dev/null || true && cd ..
           sed -i '115 r /dev/stdin' vm/inside.sh <<'ENVEOF'
-          echo "setting env variables"
-          
-          # Create stub halt command for UML (systemd halt doesn't work in UML/hostfs)
           cat > /tmp/bin/halt << 'HALTEOF'
           #!/bin/sh
-          # UML-compatible halt - just exit cleanly
           sync
           exit 0
           HALTEOF
           chmod +x /tmp/bin/halt
-          
-          # Set up wolfSSL environment variables
-          echo "Setting up wolfSSL environment in UML mode with FORCE_FAIL"
-          # Use system-installed packages - find where wolfprov is actually installed
           OPENSSL_MODULES_PATH=$(find /usr -name "libwolfprov.so" -exec dirname {} \; 2>/dev/null | head -1)
-          if [ -n "$OPENSSL_MODULES_PATH" ]; then
-            export OPENSSL_MODULES="$OPENSSL_MODULES_PATH"
-            echo "OPENSSL_MODULES: $OPENSSL_MODULES"
-          else
-            echo "WARNING: Could not find libwolfprov.so"
-          fi
+          [ -n "$OPENSSL_MODULES_PATH" ] && export OPENSSL_MODULES="$OPENSSL_MODULES_PATH"
           export OPENSSL_CONF="/etc/ssl/openssl.cnf"
           export CRYPTOGRAPHY_OPENSSL_NO_LEGACY=1
           export WOLFPROV_FORCE_FAIL=1
-          echo "OPENSSL_CONF: $OPENSSL_CONF"
-          echo "WOLFPROV_FORCE_FAIL: 1"
-          # Test if wolfProvider is available
-          echo "Testing OpenSSL providers:"
-          openssl list -providers 2>&1 || echo "OpenSSL provider test failed"
           ENVEOF
 
       - name: Setup OPENSSL-only environment
         working-directory: hostap/tests/hwsim
         if: matrix.force_fail == 'OPENSSL'
         run: |
-          # First, clean any previous modifications to inside.sh
-          cd vm
-          git checkout inside.sh 2>/dev/null || true
-          cd ..
-          
-          # For OPENSSL mode, we don't load wolfProvider - just use default OpenSSL
+          cd vm && git checkout inside.sh 2>/dev/null || true && cd ..
           sed -i '115 r /dev/stdin' vm/inside.sh <<'ENVEOF'
-          echo "Setting up pure OpenSSL environment (no wolfProvider)"
-          
-          # Create stub halt command for UML (systemd halt doesn't work in UML/hostfs)
           cat > /tmp/bin/halt << 'HALTEOF'
           #!/bin/sh
-          # UML-compatible halt - just exit cleanly
           sync
           exit 0
           HALTEOF
           chmod +x /tmp/bin/halt
-          
           export OPENSSL_CONF="/etc/ssl/openssl.cnf"
           export CRYPTOGRAPHY_OPENSSL_NO_LEGACY=1
-          echo "OPENSSL_CONF: $OPENSSL_CONF"
-          echo "Testing OpenSSL providers:"
-          openssl list -providers 2>&1 || echo "OpenSSL provider test failed"
           ENVEOF
 
       - name: Update certs
@@ -279,162 +229,52 @@ jobs:
         run: |
           set +e
           
-          # Setup vm-config for UML (no KVMARGS needed for UML)
           echo "KERNELDIR=$GITHUB_WORKSPACE/linux" >> vm/vm-config
 
-          echo "=== Checking vm/inside.sh modifications ==="
-          echo "Last 30 lines of vm/inside.sh:"
-          tail -30 vm/inside.sh
-          
-          echo ""
-          echo "=== Verifying test files exist ==="
-          ls -la tests/ 2>/dev/null | head -20 || echo "tests/ directory not found"
-          
-          echo ""
-          echo "=== Looking for p2p test files ==="
-          find tests/ -name "*p2p*.py" 2>/dev/null | head -10 || echo "No p2p tests found"
-          ls -la tests/hwsim/test_p2p*.py 2>/dev/null || echo "test_p2p*.py not in tests/hwsim/"
-          
-          echo ""
-          echo "=== Checking available test modules ==="
-          grep -l "def test_p2p_device_discovery" tests/hwsim/*.py 2>/dev/null || echo "test_p2p_device_discovery function not found"
-          
-          echo ""
-          echo "=== Checking kernel ==="
-          ls -lh $GITHUB_WORKSPACE/linux/linux
-          file $GITHUB_WORKSPACE/linux/linux
-
-          # First, let's do a quick sanity check
-          echo ""
-          echo "=== Sanity check: Testing VM startup ==="
-          timeout 30s ./vm/parallel-vm.py --nocurses 1 ap_open || echo "Initial test result: $?"
-
-          # Check if we got actual VM logs
-          if [ -d "/tmp/hwsim-test-logs" ]; then
-            echo "=== VM startup logs ==="
-            ls -la /tmp/hwsim-test-logs/
-            
-            # Look for console files with different patterns
-            echo "=== First VM console log (if exists) ==="
-            CONSOLE_LOG=$(find /tmp/hwsim-test-logs -name "console" -type f | head -1)
-            if [ -n "$CONSOLE_LOG" ]; then
-              echo "Found console log: $CONSOLE_LOG"
-              cat "$CONSOLE_LOG" || echo "Could not read console log"
-            else
-              echo "No console log found"
-            fi
-          fi
-
-          SMOKE_TIMEOUT="3m"
-          TLS_TIMEOUT="5m"
-
-          # Run smoke tests - using correct P2P test name
-          echo "=== Running focused smoke tests ==="
+          # Run smoke tests
           SMOKE_TESTS="ap_open ap_wpa2_psk discovery"
-          echo "Running smoke tests with timeout $SMOKE_TIMEOUT: $SMOKE_TESTS"
-          echo "Note: 'discovery' tests basic P2P device discovery functionality"
-          timeout $SMOKE_TIMEOUT ./vm/parallel-vm.py --nocurses $(nproc) $SMOKE_TESTS || SMOKE_RES=$?
+          timeout 3m ./vm/parallel-vm.py --nocurses $(nproc) $SMOKE_TESTS || SMOKE_RES=$?
 
-          echo "=== Running TLS/EAP tests ==="
-          # Note: MSCHAPv2 tests excluded - they require MD4/DES which are not FIPS-certified
-          # and intentionally not supported by wolfSSL/wolfProvider (deprecated weak crypto)
-          # PEAP-GTC requires params, using PEAP-TLS instead
+          # Run EAP tests (excluding MSCHAPv2 - requires MD4/DES not in wolfSSL)
           TLS_EAP_TESTS="ap_wpa2_eap_tls ap_wpa2_eap_ttls_eap_gtc ap_wpa2_eap_peap_eap_tls"
-          echo "Running TLS/EAP tests with timeout $TLS_TIMEOUT: $TLS_EAP_TESTS"
-          echo "Note: Excluding MSCHAPv2 tests (require MD4/DES - not FIPS compliant)"
-          timeout $TLS_TIMEOUT ./vm/parallel-vm.py --nocurses $(nproc) $TLS_EAP_TESTS || TLS_RES=$?
-          
-          # Show detailed logs for any EAP failures
-          if [ "${TLS_RES:-0}" -ne "0" ]; then
-            echo ""
-            echo "=== EAP Test Failure Details ==="
-            for logfile in /tmp/hwsim-test-logs/*/ap_wpa2_eap*.log; do
-              if [ -f "$logfile" ]; then
-                echo "--- $logfile ---"
-                tail -50 "$logfile" 2>/dev/null || true
-              fi
-            done
-          fi
+          timeout 5m ./vm/parallel-vm.py --nocurses $(nproc) $TLS_EAP_TESTS || TLS_RES=$?
 
-          # Check for timeout conditions (exit code 124)
-          SMOKE_TIMEOUT_FLAG=false
-          TLS_TIMEOUT_FLAG=false
-          if [ "${SMOKE_RES:-0}" -eq "124" ]; then
-            echo "Smoke tests timed out"
-            SMOKE_TIMEOUT_FLAG=true
-          fi
-          if [ "${TLS_RES:-0}" -eq "124" ]; then
-            echo "TLS/EAP tests timed out"
-            TLS_TIMEOUT_FLAG=true
-          fi
-
-          # Combine results
+          # Evaluate results
           FINAL_RES=0
           if [ "${SMOKE_RES:-0}" -ne "0" ] || [ "${TLS_RES:-0}" -ne "0" ]; then
             FINAL_RES=1
           fi
 
-          # Check if failures are due to NOT-FOUND (missing tests) vs actual test failures
-          NOT_FOUND_COUNT=$(grep -h "NOT-FOUND" /tmp/hwsim-test-logs/*-parallel.log 2>/dev/null | wc -l || echo "0")
-          ACTUAL_TEST_FAILURES=$(grep -h "Failed:" /tmp/hwsim-test-logs/*-parallel.log 2>/dev/null | grep -v "NOT-FOUND" | wc -l || echo "0")
-          
-          echo ""
-          echo "=== Test Failure Analysis ==="
-          echo "NOT-FOUND tests (missing test files): $NOT_FOUND_COUNT"
-          echo "Actual test failures: $ACTUAL_TEST_FAILURES"
-          
-          # If only NOT-FOUND errors and no actual test failures, don't fail the build
-          if [ "$FINAL_RES" -ne "0" ] && [ "$ACTUAL_TEST_FAILURES" -eq "0" ] && [ "$NOT_FOUND_COUNT" -gt "0" ]; then
-            echo "Note: Only NOT-FOUND errors detected (test files missing or require special params)"
-            echo "Treating as non-critical since actual tests that ran all passed"
-            echo "Tests that actually executed: All PASSED"
-            # Ignore NOT-FOUND - they're not real failures
+          # Ignore NOT-FOUND errors (test files missing/require special params)
+          NOT_FOUND=$(grep -h "NOT-FOUND" /tmp/hwsim-test-logs/*-parallel.log 2>/dev/null | wc -l || echo "0")
+          REAL_FAILS=$(grep -h "Failed:" /tmp/hwsim-test-logs/*-parallel.log 2>/dev/null | grep -v "NOT-FOUND" | wc -l || echo "0")
+          if [ "$FINAL_RES" -ne "0" ] && [ "$REAL_FAILS" -eq "0" ] && [ "$NOT_FOUND" -gt "0" ]; then
             FINAL_RES=0
           fi
 
-          # Evaluate results based on mode
+          # Check results based on test mode
           if [ "${{ matrix.force_fail }}" = "WOLFPROV_FORCE_FAIL=1" ]; then
-            # Force fail mode - we EXPECT failures or timeouts
             if [ $FINAL_RES -ne 0 ]; then
-              if [ "$SMOKE_TIMEOUT_FLAG" = true ] || [ "$TLS_TIMEOUT_FLAG" = true ]; then
-                echo "✓ EXPECTED TIMEOUT/STALL: Tests timed out as expected with WOLFPROV_FORCE_FAIL=1"
-                echo "This confirms wolfProvider force fail is working correctly (causing stalls)"
-              else
-                echo "✓ EXPECTED FAILURE: Tests failed as expected with WOLFPROV_FORCE_FAIL=1"
-                echo "This confirms wolfProvider is being used correctly"
-              fi
+              echo "✓ EXPECTED: Tests failed with WOLFPROV_FORCE_FAIL=1"
               exit 0
             else
-              echo "✗ UNEXPECTED SUCCESS: Tests passed when they should have failed/timed out with force_fail"
+              echo "✗ UNEXPECTED: Tests passed with WOLFPROV_FORCE_FAIL=1"
               exit 1
             fi
           elif [ "${{ matrix.force_fail }}" = "OPENSSL" ]; then
-            # Pure OpenSSL mode - baseline reference, should pass
             if [ $FINAL_RES -eq 0 ]; then
-              echo "✓ SUCCESS: Pure OpenSSL tests passed (baseline confirmed)"
+              echo "✓ SUCCESS: Pure OpenSSL tests passed"
               exit 0
             else
               echo "✗ FAILURE: Pure OpenSSL tests failed"
-              echo "This indicates infrastructure or test environment issues"
-              echo "SMOKE_RES=${SMOKE_RES:-0}, TLS_RES=${TLS_RES:-0}"
               exit 1
             fi
           else
-            # Regular wolfProvider mode - should work like OpenSSL
             if [ $FINAL_RES -eq 0 ]; then
               echo "✓ SUCCESS: wolfProvider tests passed"
               exit 0
             else
               echo "✗ FAILURE: wolfProvider tests failed"
-              echo "SMOKE_RES=${SMOKE_RES:-0}, TLS_RES=${TLS_RES:-0}"
-              if [ "$SMOKE_TIMEOUT_FLAG" = true ] || [ "$TLS_TIMEOUT_FLAG" = true ]; then
-                echo "Tests timed out - possible wolfProvider performance issue"
-              fi
-              # Check if it's just EAP failures (which might be expected with wolfProvider)
-              if [ "${SMOKE_RES:-0}" -eq "0" ]; then
-                echo "Note: Smoke tests (ap_open, ap_wpa2_psk) passed"
-                echo "Only EAP/TLS tests failed - this may indicate missing crypto support in wolfProvider"
-              fi
               exit 1
             fi
           fi
