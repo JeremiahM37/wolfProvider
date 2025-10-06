@@ -102,7 +102,8 @@ jobs:
             libnl-route-3-dev libdbus-1-dev bridge-utils tshark python3-pycryptodome \
             libsqlite3-dev libzstd1 wireless-tools iw build-essential autoconf automake \
             libtool pkg-config git wget ca-certificates flex bison bc libxml2-dev \
-            zlib1g-dev python3-pip psmisc iproute2 procps net-tools
+            zlib1g-dev python3-pip psmisc iproute2 procps net-tools \
+            crda systemd-sysv kmod
           # Uninstall system cryptography and reinstall with custom OpenSSL
           apt-get remove -y python3-cryptography || true
           pip install --no-cache-dir --force-reinstall --break-system-packages cryptography
@@ -315,6 +316,18 @@ jobs:
           FINAL_RES=0
           if [ "${SMOKE_RES:-0}" -ne "0" ] || [ "${TLS_RES:-0}" -ne "0" ]; then
             FINAL_RES=1
+          fi
+
+          # Check if any tests actually ran
+          TESTS_ACTUALLY_RAN=false
+          if grep -q "Tests run: [1-9]" /tmp/hwsim-test-logs/*/parallel.log 2>/dev/null; then
+            TESTS_ACTUALLY_RAN=true
+          fi
+          
+          if [ "$TESTS_ACTUALLY_RAN" = false ]; then
+            echo "CRITICAL ERROR: No tests actually ran (VMs crashed or tests not found)"
+            echo "This indicates a fundamental setup problem, not a test failure"
+            exit 1
           fi
 
           # For force fail tests, we expect failures (including timeouts)
