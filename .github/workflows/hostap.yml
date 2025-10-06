@@ -3,7 +3,7 @@ name: hostap and wpa supplicant Tests
 # START OF COMMON SECTION
 on:
   push:
-    branches: [ '*' ] # [ 'master', 'main', 'release/**' ]
+    branches: [ '*' ]
   pull_request:
     branches: [ '*' ]
 
@@ -21,7 +21,7 @@ jobs:
       replace_default: ${{ matrix.replace_default }}
     strategy:
       matrix:
-        wolfssl_ref: [ 'master', 'v5.8.2-stable' ]
+        wolfssl_ref: [ 'v5.8.2-stable' ]
         openssl_ref: [ 'openssl-3.5.2' ]
         replace_default: [ true ]
 
@@ -39,8 +39,8 @@ jobs:
     strategy:
       matrix:
         hostap_ref: [ 'main' ]
-        wolfssl_ref: [ 'master', 'v5.8.0-stable' ]
-        openssl_ref: [ 'openssl-3.5.0' ]
+        wolfssl_ref: [ 'v5.8.2-stable' ]
+        openssl_ref: [ 'openssl-3.5.2' ]
         force_fail: [ 'WOLFPROV_FORCE_FAIL=1', '', 'OPENSSL' ]
         replace_default: [ true ]
     env:
@@ -102,7 +102,7 @@ jobs:
             libnl-route-3-dev libdbus-1-dev bridge-utils tshark python3-pycryptodome \
             libsqlite3-dev libzstd1 wireless-tools iw build-essential autoconf automake \
             libtool pkg-config git wget ca-certificates flex bison bc libxml2-dev \
-            zlib1g-dev python3-pip
+            zlib1g-dev python3-pip psmisc iproute2
           # Uninstall system cryptography and reinstall with custom OpenSSL
           apt-get remove -y python3-cryptography || true
           pip install --no-cache-dir --force-reinstall --break-system-packages cryptography
