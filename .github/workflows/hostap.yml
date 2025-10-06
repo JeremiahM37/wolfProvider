@@ -93,6 +93,12 @@ jobs:
         run: |
           echo "Testing OpenSSL providers before hostap installation..."
           openssl list -providers
+          echo ""
+          echo "Checking OpenSSL config file:"
+          cat /etc/ssl/openssl.cnf | grep -A 10 "provider"
+          echo ""
+          echo "Locating wolfprov library:"
+          find /usr -name "libwolfprov.so" 2>/dev/null || echo "wolfprov not found"
 
       - name: Install hostap dependencies
         run: |
@@ -102,7 +108,7 @@ jobs:
             libnl-route-3-dev libdbus-1-dev bridge-utils tshark python3-pycryptodome \
             libsqlite3-dev libzstd1 wireless-tools iw build-essential autoconf automake \
             libtool pkg-config git wget ca-certificates flex bison bc libxml2-dev \
-            zlib1g-dev python3-pip psmisc iproute2
+            zlib1g-dev python3-pip psmisc iproute2 procps net-tools
           # Uninstall system cryptography and reinstall with custom OpenSSL
           apt-get remove -y python3-cryptography || true
           pip install --no-cache-dir --force-reinstall --break-system-packages cryptography
@@ -252,7 +258,7 @@ jobs:
           fi
 
           # For force fail tests, we expect failures (including timeouts)
-          if [ "${{ matrix.force_fail }}" == "WOLFPROV_FORCE_FAIL=1" ]; then
+          if [ "${{ matrix.force_fail }}" = "WOLFPROV_FORCE_FAIL=1" ]; then
             if [ $FINAL_RES -ne 0 ]; then
               if [ "$SMOKE_TIMEOUT_FLAG" = true ] || [ "$TLS_TIMEOUT_FLAG" = true ]; then
                 echo "EXPECTED TIMEOUT/STALL: Tests timed out as expected with WOLFPROV_FORCE_FAIL=1"
