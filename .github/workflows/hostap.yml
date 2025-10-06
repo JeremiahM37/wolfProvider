@@ -93,12 +93,6 @@ jobs:
         run: |
           echo "Testing OpenSSL providers before hostap installation..."
           openssl list -providers
-          echo ""
-          echo "Checking OpenSSL config file:"
-          cat /etc/ssl/openssl.cnf | grep -A 10 "provider"
-          echo ""
-          echo "Locating wolfprov library:"
-          find /usr -name "libwolfprov.so" 2>/dev/null || echo "wolfprov not found"
 
       - name: Install hostap dependencies
         run: |
