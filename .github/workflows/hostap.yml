@@ -156,24 +156,25 @@ jobs:
           cd ..
           
           # Insert environment variables after line 115 (after the logshare mount)
-          sed -i '115a\
-echo "setting env variables"\
-# Set up wolfSSL environment variables\
-echo "Setting up wolfSSL environment in UML mode"\
-# Use system-installed packages - find where wolfprov is actually installed\
-OPENSSL_MODULES_PATH=$(find /usr -name "libwolfprov.so" -exec dirname {} \\; 2>/dev/null | head -1)\
-if [ -n "$OPENSSL_MODULES_PATH" ]; then\
-  export OPENSSL_MODULES="$OPENSSL_MODULES_PATH"\
-  echo "OPENSSL_MODULES: $OPENSSL_MODULES"\
-else\
-  echo "WARNING: Could not find libwolfprov.so"\
-fi\
-export OPENSSL_CONF="/etc/ssl/openssl.cnf"\
-export CRYPTOGRAPHY_OPENSSL_NO_LEGACY=1\
-echo "OPENSSL_CONF: $OPENSSL_CONF"\
-# Test if wolfProvider is available\
-echo "Testing OpenSSL providers:"\
-openssl list -providers 2>&1 || echo "OpenSSL provider test failed"' vm/inside.sh
+          sed -i '115 r /dev/stdin' vm/inside.sh <<'ENVEOF'
+          echo "setting env variables"
+          # Set up wolfSSL environment variables
+          echo "Setting up wolfSSL environment in UML mode"
+          # Use system-installed packages - find where wolfprov is actually installed
+          OPENSSL_MODULES_PATH=$(find /usr -name "libwolfprov.so" -exec dirname {} \; 2>/dev/null | head -1)
+          if [ -n "$OPENSSL_MODULES_PATH" ]; then
+            export OPENSSL_MODULES="$OPENSSL_MODULES_PATH"
+            echo "OPENSSL_MODULES: $OPENSSL_MODULES"
+          else
+            echo "WARNING: Could not find libwolfprov.so"
+          fi
+          export OPENSSL_CONF="/etc/ssl/openssl.cnf"
+          export CRYPTOGRAPHY_OPENSSL_NO_LEGACY=1
+          echo "OPENSSL_CONF: $OPENSSL_CONF"
+          # Test if wolfProvider is available
+          echo "Testing OpenSSL providers:"
+          openssl list -providers 2>&1 || echo "OpenSSL provider test failed"
+          ENVEOF
 
       - name: Setup WPFF environment
         working-directory: hostap/tests/hwsim
@@ -185,26 +186,27 @@ openssl list -providers 2>&1 || echo "OpenSSL provider test failed"' vm/inside.s
           cd ..
           
           # Insert environment variables after line 115 (after the logshare mount)
-          sed -i '115a\
-echo "setting env variables"\
-# Set up wolfSSL environment variables\
-echo "Setting up wolfSSL environment in UML mode with FORCE_FAIL"\
-# Use system-installed packages - find where wolfprov is actually installed\
-OPENSSL_MODULES_PATH=$(find /usr -name "libwolfprov.so" -exec dirname {} \\; 2>/dev/null | head -1)\
-if [ -n "$OPENSSL_MODULES_PATH" ]; then\
-  export OPENSSL_MODULES="$OPENSSL_MODULES_PATH"\
-  echo "OPENSSL_MODULES: $OPENSSL_MODULES"\
-else\
-  echo "WARNING: Could not find libwolfprov.so"\
-fi\
-export OPENSSL_CONF="/etc/ssl/openssl.cnf"\
-export CRYPTOGRAPHY_OPENSSL_NO_LEGACY=1\
-export WOLFPROV_FORCE_FAIL=1\
-echo "OPENSSL_CONF: $OPENSSL_CONF"\
-echo "WOLFPROV_FORCE_FAIL: 1"\
-# Test if wolfProvider is available\
-echo "Testing OpenSSL providers:"\
-openssl list -providers 2>&1 || echo "OpenSSL provider test failed"' vm/inside.sh
+          sed -i '115 r /dev/stdin' vm/inside.sh <<'ENVEOF'
+          echo "setting env variables"
+          # Set up wolfSSL environment variables
+          echo "Setting up wolfSSL environment in UML mode with FORCE_FAIL"
+          # Use system-installed packages - find where wolfprov is actually installed
+          OPENSSL_MODULES_PATH=$(find /usr -name "libwolfprov.so" -exec dirname {} \; 2>/dev/null | head -1)
+          if [ -n "$OPENSSL_MODULES_PATH" ]; then
+            export OPENSSL_MODULES="$OPENSSL_MODULES_PATH"
+            echo "OPENSSL_MODULES: $OPENSSL_MODULES"
+          else
+            echo "WARNING: Could not find libwolfprov.so"
+          fi
+          export OPENSSL_CONF="/etc/ssl/openssl.cnf"
+          export CRYPTOGRAPHY_OPENSSL_NO_LEGACY=1
+          export WOLFPROV_FORCE_FAIL=1
+          echo "OPENSSL_CONF: $OPENSSL_CONF"
+          echo "WOLFPROV_FORCE_FAIL: 1"
+          # Test if wolfProvider is available
+          echo "Testing OpenSSL providers:"
+          openssl list -providers 2>&1 || echo "OpenSSL provider test failed"
+          ENVEOF
 
       - name: Setup OPENSSL-only environment
         working-directory: hostap/tests/hwsim
@@ -216,13 +218,14 @@ openssl list -providers 2>&1 || echo "OpenSSL provider test failed"' vm/inside.s
           cd ..
           
           # For OPENSSL mode, we don't load wolfProvider - just use default OpenSSL
-          sed -i '115a\
-echo "Setting up pure OpenSSL environment (no wolfProvider)"\
-export OPENSSL_CONF="/etc/ssl/openssl.cnf"\
-export CRYPTOGRAPHY_OPENSSL_NO_LEGACY=1\
-echo "OPENSSL_CONF: $OPENSSL_CONF"\
-echo "Testing OpenSSL providers:"\
-openssl list -providers 2>&1 || echo "OpenSSL provider test failed"' vm/inside.sh
+          sed -i '115 r /dev/stdin' vm/inside.sh <<'ENVEOF'
+          echo "Setting up pure OpenSSL environment (no wolfProvider)"
+          export OPENSSL_CONF="/etc/ssl/openssl.cnf"
+          export CRYPTOGRAPHY_OPENSSL_NO_LEGACY=1
+          echo "OPENSSL_CONF: $OPENSSL_CONF"
+          echo "Testing OpenSSL providers:"
+          openssl list -providers 2>&1 || echo "OpenSSL provider test failed"
+          ENVEOF
 
       - name: Update certs
         working-directory: hostap/tests/hwsim/auth_serv
