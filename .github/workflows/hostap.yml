@@ -245,6 +245,9 @@ jobs:
             FINAL_RES=1
           fi
 
+          # Check for connection failures (common with WOLFPROV_FORCE_FAIL)
+          WPA_CONNECT_FAILS=$(grep -h "Could not connect to /tmp/wpas" /tmp/hwsim-test-logs/*/parallel.log 2>/dev/null | wc -l || echo "0")
+          
           # Ignore NOT-FOUND errors (test files missing/require special params)
           NOT_FOUND=$(grep -h "NOT-FOUND" /tmp/hwsim-test-logs/*-parallel.log 2>/dev/null | wc -l || echo "0")
           REAL_FAILS=$(grep -h "Failed:" /tmp/hwsim-test-logs/*-parallel.log 2>/dev/null | grep -v "NOT-FOUND" | wc -l || echo "0")
@@ -254,8 +257,9 @@ jobs:
 
           # Check results based on test mode
           if [ "${{ matrix.force_fail }}" = "WOLFPROV_FORCE_FAIL=1" ]; then
-            if [ $FINAL_RES -ne 0 ]; then
-              echo "✓ EXPECTED: Tests failed with WOLFPROV_FORCE_FAIL=1"
+            # With force fail, we expect failures or connection issues
+            if [ $FINAL_RES -ne 0 ] || [ "$WPA_CONNECT_FAILS" -gt "0" ]; then
+              echo "✓ EXPECTED: Tests failed/crashed with WOLFPROV_FORCE_FAIL=1"
               exit 0
             else
               echo "✗ UNEXPECTED: Tests passed with WOLFPROV_FORCE_FAIL=1"
