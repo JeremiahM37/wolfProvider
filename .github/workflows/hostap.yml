@@ -108,7 +108,14 @@ jobs:
           pip install --no-cache-dir --force-reinstall --break-system-packages cryptography
 
       - name: Checkout hostap
-        run: test -d hostap || git clone https://w1.fi/hostap.git
+        run: |
+          if [ ! -d hostap ]; then
+            git clone https://w1.fi/hostap.git
+          fi
+          # Ensure inside.sh is clean (in case it was modified in previous runs)
+          cd hostap/tests/hwsim/vm
+          git checkout inside.sh 2>/dev/null || true
+          cd $GITHUB_WORKSPACE
 
       - name: Checkout linux
         uses: actions/checkout@v4
@@ -143,44 +150,79 @@ jobs:
         working-directory: hostap/tests/hwsim
         if: matrix.force_fail == ''
         run: |
-          sed -i '115r /dev/stdin' vm/inside.sh << EOF
-            echo "setting env variables"
-            # Set up wolfSSL environment variables
-            # In UML mode, we can access the host filesystem directly
-            echo "Setting up wolfSSL environment in UML mode"
-            # Use system-installed packages - find where wolfprov is actually installed
-            export OPENSSL_MODULES=\$(find /usr -name "libwolfprov.so" -exec dirname {} \; 2>/dev/null | head -1)
-            export OPENSSL_CONF="/etc/ssl/openssl.cnf"
-            export CRYPTOGRAPHY_OPENSSL_NO_LEGACY=1
-            echo "wolfSSL environment variables set:"
-            echo "OPENSSL_MODULES: \$OPENSSL_MODULES"
-            echo "OPENSSL_CONF: \$OPENSSL_CONF"
-            # Test if wolfProvider is available
-            echo "Testing OpenSSL providers:"
-            openssl list -providers
-          EOF
+          # First, clean any previous modifications to inside.sh
+          cd vm
+          git checkout inside.sh 2>/dev/null || true
+          cd ..
+          
+          # Insert environment variables after line 115 (after the logshare mount)
+          sed -i '115a\
+echo "setting env variables"\
+# Set up wolfSSL environment variables\
+echo "Setting up wolfSSL environment in UML mode"\
+# Use system-installed packages - find where wolfprov is actually installed\
+OPENSSL_MODULES_PATH=$(find /usr -name "libwolfprov.so" -exec dirname {} \\; 2>/dev/null | head -1)\
+if [ -n "$OPENSSL_MODULES_PATH" ]; then\
+  export OPENSSL_MODULES="$OPENSSL_MODULES_PATH"\
+  echo "OPENSSL_MODULES: $OPENSSL_MODULES"\
+else\
+  echo "WARNING: Could not find libwolfprov.so"\
+fi\
+export OPENSSL_CONF="/etc/ssl/openssl.cnf"\
+export CRYPTOGRAPHY_OPENSSL_NO_LEGACY=1\
+echo "OPENSSL_CONF: $OPENSSL_CONF"\
+# Test if wolfProvider is available\
+echo "Testing OpenSSL providers:"\
+openssl list -providers 2>&1 || echo "OpenSSL provider test failed"' vm/inside.sh
 
       - name: Setup WPFF environment
         working-directory: hostap/tests/hwsim
         if: matrix.force_fail == 'WOLFPROV_FORCE_FAIL=1'
         run: |
-          sed -i '115r /dev/stdin' vm/inside.sh << EOF
-            echo "setting env variables"
-            # Set up wolfSSL environment variables
-            echo "Setting up wolfSSL environment in UML mode"
-            # Use system-installed packages - find where wolfprov is actually installed
-            export OPENSSL_MODULES=\$(find /usr -name "libwolfprov.so" -exec dirname {} \; 2>/dev/null | head -1)
-            export OPENSSL_CONF="/etc/ssl/openssl.cnf"
-            export CRYPTOGRAPHY_OPENSSL_NO_LEGACY=1
-            export WOLFPROV_FORCE_FAIL=1
-            echo "wolfSSL environment variables set:"
-            echo "OPENSSL_MODULES: \$OPENSSL_MODULES"
-            echo "OPENSSL_CONF: \$OPENSSL_CONF"
-            echo "WOLFPROV_FORCE_FAIL: \$WOLFPROV_FORCE_FAIL"
-            # Test if wolfProvider is available
-            echo "Testing OpenSSL providers:"
-            openssl list -providers
-          EOF
+          # First, clean any previous modifications to inside.sh
+          cd vm
+          git checkout inside.sh 2>/dev/null || true
+          cd ..
+          
+          # Insert environment variables after line 115 (after the logshare mount)
+          sed -i '115a\
+echo "setting env variables"\
+# Set up wolfSSL environment variables\
+echo "Setting up wolfSSL environment in UML mode with FORCE_FAIL"\
+# Use system-installed packages - find where wolfprov is actually installed\
+OPENSSL_MODULES_PATH=$(find /usr -name "libwolfprov.so" -exec dirname {} \\; 2>/dev/null | head -1)\
+if [ -n "$OPENSSL_MODULES_PATH" ]; then\
+  export OPENSSL_MODULES="$OPENSSL_MODULES_PATH"\
+  echo "OPENSSL_MODULES: $OPENSSL_MODULES"\
+else\
+  echo "WARNING: Could not find libwolfprov.so"\
+fi\
+export OPENSSL_CONF="/etc/ssl/openssl.cnf"\
+export CRYPTOGRAPHY_OPENSSL_NO_LEGACY=1\
+export WOLFPROV_FORCE_FAIL=1\
+echo "OPENSSL_CONF: $OPENSSL_CONF"\
+echo "WOLFPROV_FORCE_FAIL: 1"\
+# Test if wolfProvider is available\
+echo "Testing OpenSSL providers:"\
+openssl list -providers 2>&1 || echo "OpenSSL provider test failed"' vm/inside.sh
+
+      - name: Setup OPENSSL-only environment
+        working-directory: hostap/tests/hwsim
+        if: matrix.force_fail == 'OPENSSL'
+        run: |
+          # First, clean any previous modifications to inside.sh
+          cd vm
+          git checkout inside.sh 2>/dev/null || true
+          cd ..
+          
+          # For OPENSSL mode, we don't load wolfProvider - just use default OpenSSL
+          sed -i '115a\
+echo "Setting up pure OpenSSL environment (no wolfProvider)"\
+export OPENSSL_CONF="/etc/ssl/openssl.cnf"\
+export CRYPTOGRAPHY_OPENSSL_NO_LEGACY=1\
+echo "OPENSSL_CONF: $OPENSSL_CONF"\
+echo "Testing OpenSSL providers:"\
+openssl list -providers 2>&1 || echo "OpenSSL provider test failed"' vm/inside.sh
 
       - name: Update certs
         working-directory: hostap/tests/hwsim/auth_serv
@@ -202,12 +244,27 @@ jobs:
         continue-on-error: true
         run: |
           set +e
+          
+          # Setup vm-config for UML (no KVMARGS needed for UML)
           cat << EOF >> vm/vm-config
-            KERNELDIR=$GITHUB_WORKSPACE/linux
-            KVMARGS="-cpu host"
-          EOF
+KERNELDIR=$GITHUB_WORKSPACE/linux
+EOF
+
+          echo "=== Checking vm/inside.sh modifications ==="
+          echo "Last 30 lines of vm/inside.sh:"
+          tail -30 vm/inside.sh
+          
+          echo ""
+          echo "=== Verifying test files exist ==="
+          ls -la tests/ | head -20
+          
+          echo ""
+          echo "=== Checking kernel ==="
+          ls -lh $GITHUB_WORKSPACE/linux/linux
+          file $GITHUB_WORKSPACE/linux/linux
 
           # First, let's do a quick sanity check
+          echo ""
           echo "=== Sanity check: Testing VM startup ==="
           timeout 30s ./vm/parallel-vm.py --nocurses 1 ap_open || echo "Initial test result: $?"
 
@@ -215,8 +272,16 @@ jobs:
           if [ -d "/tmp/hwsim-test-logs" ]; then
             echo "=== VM startup logs ==="
             ls -la /tmp/hwsim-test-logs/
+            
+            # Look for console files with different patterns
             echo "=== First VM console log (if exists) ==="
-            cat /tmp/hwsim-test-logs/vm-*-0.log 2>/dev/null | head -50 || echo "No VM logs found"
+            CONSOLE_LOG=$(find /tmp/hwsim-test-logs -name "console" -type f | head -1)
+            if [ -n "$CONSOLE_LOG" ]; then
+              echo "Found console log: $CONSOLE_LOG"
+              cat "$CONSOLE_LOG" || echo "Could not read console log"
+            else
+              echo "No console log found"
+            fi
           fi
 
           SMOKE_TIMEOUT="3m"
