@@ -103,7 +103,7 @@ jobs:
             libsqlite3-dev libzstd1 wireless-tools iw build-essential autoconf automake \
             libtool pkg-config git wget ca-certificates flex bison bc libxml2-dev \
             zlib1g-dev python3-pip psmisc iproute2 procps net-tools \
-            crda systemd-sysv kmod
+            systemd kmod wireless-regdb
           # Uninstall system cryptography and reinstall with custom OpenSSL
           apt-get remove -y python3-cryptography || true
           pip install --no-cache-dir --force-reinstall --break-system-packages cryptography
