@@ -249,9 +249,7 @@ jobs:
           set +e
           
           # Setup vm-config for UML (no KVMARGS needed for UML)
-          cat << EOF >> vm/vm-config
-KERNELDIR=$GITHUB_WORKSPACE/linux
-EOF
+          echo "KERNELDIR=$GITHUB_WORKSPACE/linux" >> vm/vm-config
 
           echo "=== Checking vm/inside.sh modifications ==="
           echo "Last 30 lines of vm/inside.sh:"
