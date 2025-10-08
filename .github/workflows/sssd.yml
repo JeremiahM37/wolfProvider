@@ -3,7 +3,7 @@ name: SSSD Tests
 # START OF COMMON SECTION
 on:
   push:
-    branches: [ '*' ] # [ 'master', 'main', 'release/**' ]
+    branches: [ '*' ]  # [ 'master', 'main', 'release/**' ]
   pull_request:
     branches: [ '*' ]
 
@@ -20,6 +20,7 @@ jobs:
       image: quay.io/sssd/ci-client-devel:ubuntu-latest
       env:
         LD_LIBRARY_PATH: /usr/local/lib:/github/home/wolfssl-install/lib:/github/home/openssl-install/lib64
+        DEBIAN_FRONTEND: noninteractive
     strategy:
       fail-fast: false
       matrix:
@@ -31,6 +32,12 @@ jobs:
           - sssd_ref: 'master'
             force_fail: 'WOLFPROV_FORCE_FAIL=1'
     steps:
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y build-essential autoconf libldb-dev \
+          libldb2 python3-ldb bc libcap-dev libutf8proc-dev git
+
       - name: Checkout wolfProvider
         uses: actions/checkout@v4
         with:
@@ -48,7 +55,6 @@ jobs:
             openssl-install/lib64
             openssl-install/include
             openssl-install/bin
-
           key: wolfprov-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}-${{ github.sha }}
           lookup-only: true
 
@@ -58,21 +64,18 @@ jobs:
         run: |
           OPENSSL_TAG=${{ matrix.openssl_ref }} WOLFSSL_TAG=${{ matrix.wolfssl_ref }} ./scripts/build-wolfprovider.sh
 
-      - name: Install dependencies
+      - name: Setup wolfProvider environment
+        shell: bash
         run: |
-          # Don't prompt for anything
-          export DEBIAN_FRONTEND=noninteractive
-          apt-get update
-          apt-get install -y build-essential autoconf libldb-dev \
-          libldb2 python3-ldb bc libcap-dev libutf8proc-dev
+          source $GITHUB_WORKSPACE/scripts/env-setup
+          # CRITICAL FIX: Ensure custom OpenSSL binary and libraries are used
+          export PATH="$GITHUB_WORKSPACE/openssl-install/bin:$PATH"
+          export LD_LIBRARY_PATH="$GITHUB_WORKSPACE/openssl-install/lib64:$GITHUB_WORKSPACE/wolfssl-install/lib:$LD_LIBRARY_PATH"
+          echo "Checking if wolfProvider is loaded:"
+          openssl list -providers
+          echo "Testing wolfProvider functionality:"
+          openssl version
 
-      - name: Setup env
-        run: |
-          ln -s samba-4.0/ldb.h /usr/include/ldb.h
-          ln -s samba-4.0/ldb_errors.h /usr/include/ldb_errors.h
-          ln -s samba-4.0/ldb_handlers.h /usr/include/ldb_handlers.h
-          ln -s samba-4.0/ldb_module.h /usr/include/ldb_module.h
-          ln -s samba-4.0/ldb_version.h /usr/include/ldb_version.h
 
       - name: Checkout OSP
         uses: actions/checkout@v4
@@ -81,38 +84,73 @@ jobs:
           path: osp
           fetch-depth: 1
 
+
       - name: Build and test sssd with wolfProvider
+        shell: bash
         run: |
-          # Clone SSSD
+          source $GITHUB_WORKSPACE/scripts/env-setup
+          # CRITICAL FIX: Ensure custom OpenSSL binary and libraries are used
+          export PATH="$GITHUB_WORKSPACE/openssl-install/bin:$PATH"
+          export LD_LIBRARY_PATH="$GITHUB_WORKSPACE/openssl-install/lib64:$GITHUB_WORKSPACE/wolfssl-install/lib:$LD_LIBRARY_PATH"
+
+          # CRITICAL FIX: Ensure LDB headers are available for SSSD configure
+          ln -sf samba-4.0/ldb.h /usr/include/ldb.h
+          ln -sf samba-4.0/ldb_errors.h /usr/include/ldb_errors.h
+          ln -sf samba-4.0/ldb_handlers.h /usr/include/ldb_handlers.h
+          ln -sf samba-4.0/ldb_module.h /usr/include/ldb_module.h
+          ln -sf samba-4.0/ldb_version.h /usr/include/ldb_version.h
+
+          # Create the SSSD intermediate CA fix patch
+          cat > sssd-2.9.1-intermediate-ca-fix.patch << 'EOF'
+          --- a/src/tests/test_CA/intermediate_CA/Makefile.am
+          +++ b/src/tests/test_CA/intermediate_CA/Makefile.am
+          @@ -32,7 +32,7 @@ SSSD_test_CA.pem:
+          	ln -s $(builddir)/../$@
+
+          SSSD_test_intermediate_CA_req.pem: $(openssl_intermediate_ca_key) $(openssl_intermediate_ca_config) SSSD_test_CA.pem
+          -	$(OPENSSL) req -batch -config ${openssl_intermediate_ca_config} -new -nodes -key $< -sha256 -extensions v3_ca -out $@
+          +	$(OPENSSL) req -batch -config ${openssl_intermediate_ca_config} -new -nodes -key $< -sha256 -out $@
+
+          SSSD_test_intermediate_CA.pem: SSSD_test_intermediate_CA_req.pem $(openssl_root_ca_config) $(openssl_root_ca_key)
+          	cd .. && $(OPENSSL) ca -config ${openssl_root_ca_config} -batch -notext -keyfile $(openssl_root_ca_key) -in $(abs_builddir)/$< -days 200 -extensions v3_intermediate_ca -out $(abs_builddir)/$@
+          EOF
+
           git clone https://github.com/SSSD/sssd.git
           cd sssd
           git checkout ${{ matrix.sssd_ref }}
-
-          # Apply patch for testing
-          patch -p1 < $GITHUB_WORKSPACE/osp/wolfProvider/sssd/sssd-${{ matrix.sssd_ref }}-wolfprov.patch
-
-          # Configure and build SSSD with wolfProvider
+          # Apply intermediate CA fix patch
+          patch -p1 < ../sssd-2.9.1-intermediate-ca-fix.patch
           autoreconf -ivf
           ./configure --without-samba --disable-cifs-idmap-plugin \
           --without-nfsv4-idmapd-plugin --with-oidc-child=no
+
           make -j
 
       - name: Run tests
         working-directory: sssd
         shell: bash
         run: |
+          source $GITHUB_WORKSPACE/scripts/env-setup
+          # CRITICAL FIX: Ensure custom OpenSSL binary and libraries are used
+          export PATH="$GITHUB_WORKSPACE/openssl-install/bin:$PATH"
+          export LD_LIBRARY_PATH="$GITHUB_WORKSPACE/openssl-install/lib64:$GITHUB_WORKSPACE/wolfssl-install/lib:$LD_LIBRARY_PATH"
           export ${{ matrix.force_fail }}
 
-          echo "Checking OpenSSL providers:"
           openssl list -providers | tee provider-list.log
-          grep -q libwolfprov provider-list.log || (echo "ERROR: libwolfprov not found in OpenSSL providers" && exit 1)
 
-          # If force fail is enabled dont exit with error
+          if grep -q "wolfSSL Provider\|libwolfprov" provider-list.log; then
+            echo "SUCCESS: wolfProvider found in OpenSSL providers"
+          else
+            echo "ERROR: wolfProvider not found in OpenSSL providers"
+            cat provider-list.log
+            env | grep -E "(OPENSSL|WOLFSSL|LD_LIBRARY)"
+            exit 1
+          fi
+
           if [ "${{ matrix.force_fail }}" == "WOLFPROV_FORCE_FAIL=1" ]; then
             set +e
           fi
-
-          # Run tests and save result
           make check 2>&1 | tee sssd-test.log
           TEST_RESULT=${PIPESTATUS[0]}
           $GITHUB_WORKSPACE/.github/scripts/check-workflow-result.sh $TEST_RESULT ${{ matrix.force_fail }} sssd
+
