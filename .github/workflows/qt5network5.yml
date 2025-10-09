@@ -1,7 +1,7 @@
 name: qtbase Network Tests
 on:
   push:
-    branches: [ 'master', 'main', 'release/**' ]
+    branches: [ '*' ]
   pull_request:
     branches: [ '*' ]
 
@@ -92,7 +92,8 @@ jobs:
       - name: Checkout OSP
         uses: actions/checkout@v4
         with:
-          repository: wolfssl/osp
+          repository: JeremiahM37/osp
+          ref: patchFix
           path: osp
           fetch-depth: 1
 
@@ -103,6 +104,10 @@ jobs:
           path: qt5_repo
           ref: ${{ matrix.qt_ref }}
           fetch-depth: 1
+
+      - run: |
+          cd qt5_repo
+          patch -p1 < $GITHUB_WORKSPACE/osp/wolfProvider/qtbase/qtbase-${{ matrix.qt_ref }}-wolfprov.patch
 
       - name: Configure Qt
         working-directory: qt5_repo
@@ -117,9 +122,6 @@ jobs:
         if: matrix.qt_ref != 'dev'
         working-directory: qt5_repo
         run: |
-          # Force C++14 to avoid C++17 compatibility issues
-          echo 'QMAKE_CXXFLAGS += -std=c++14' >> mkspecs/linux-g++/qmake.conf
-
           make -k -j$(nproc)
 
       - name: Add test server to hosts
