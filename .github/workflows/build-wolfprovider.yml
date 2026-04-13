@@ -87,19 +87,9 @@ jobs:
       # access to the wolfSSL/wolfProvider repository for GITHUB_TOKEN to work.
       - name: Install ORAS
         if: steps.check_artifact.outcome != 'success'
-        run: |
-          ORAS_VERSION="1.2.2"
-          ORAS_CHECKSUM="bff970346470e5ef888e9f2c0bf7f8ee47283f5a45207d6e7a037da1fb0eae0d"
-          curl -sLO "https://github.com/oras-project/oras/releases/download/v${ORAS_VERSION}/oras_${ORAS_VERSION}_linux_amd64.tar.gz"
-          echo "${ORAS_CHECKSUM}  oras_${ORAS_VERSION}_linux_amd64.tar.gz" | sha256sum -c - || {
-            echo "ERROR: ORAS checksum verification failed!"
-            exit 1
-          }
-          mkdir -p "$GITHUB_WORKSPACE/.bin"
-          tar xzf "oras_${ORAS_VERSION}_linux_amd64.tar.gz" -C "$GITHUB_WORKSPACE/.bin/" oras
-          echo "$GITHUB_WORKSPACE/.bin" >> $GITHUB_PATH
-          rm -f "oras_${ORAS_VERSION}_linux_amd64.tar.gz"
-          "$GITHUB_WORKSPACE/.bin/oras" version
+        uses: oras-project/setup-oras@v1
+        with:
+          version: 1.2.2
 
       - name: Login to ghcr.io
         if: steps.check_artifact.outcome != 'success' && github.repository == 'wolfSSL/wolfProvider'
